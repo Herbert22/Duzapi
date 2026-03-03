@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações de Bot{% endblock %}
+{% block page_title %}Configurações de Bot{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/configs/new" class="btn btn-primary">
+    <i class="bi bi-plus-circle"></i> Nova Configuração
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="tenant_id" class="form-label">Filtrar por Tenant</label>
+                <select class="form-select" id="tenant_id" name="tenant_id">
+                    <option value="">Todos os tenants</option>
+                    {% for tenant in tenants %}
+                    <option value="{{ tenant.id }}" {{ 'selected' if selected_tenant_id == tenant.id|string }}>{{ tenant.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if configs %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Tenant</th>
+                        <th>Persona</th>
+                        <th>Trigger Mode</th>
+                        <th>Delays</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for config in configs %}
+                    <tr>
+                        <td>
+                            <strong>{{ config.tenant.name if config.tenant else 'N/A' }}</strong>
+                        </td>
+                        <td>{{ config.persona_name or 'Padrão' }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'info' if config.trigger_mode.value == 'all' else 'warning' }}">
+                                {{ config.trigger_mode.value }}
+                            </span>
+                            {% if config.trigger_keywords %}
+                            <br><small class="text-muted">{{ config.trigger_keywords[:30] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ config.delay_min }}s - {{ config.delay_max }}s</small>
+                        </td>
+                        <td>
+                            {% if config.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="/admin/configs/{{ config.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                {% if not config.is_active %}
+                                <form method="post" action="/admin/configs/{{ config.id }}/activate" style="display:inline;">
+                                    <button type="submit" class="btn btn-outline-success" title="Ativar">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                <button type="button" class="btn btn-outline-danger" title="Excluir"
+                                        onclick="confirmDelete('{{ config.id }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-gear fs-1 text-muted"></i>
+            <p class="text-muted mt-3">Nenhuma configuração encontrada</p>
+            <a href="/admin/configs/new" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Criar configuração
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Deseja realmente excluir esta configuração?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete(id) {
+    document.getElementById('deleteForm').action = '/admin/configs/' + id + '/delete';
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}

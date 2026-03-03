@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Editar' if tenant else 'Novo' }} Tenant{% endblock %}
+{% block page_title %}{{ 'Editar' if tenant else 'Novo' }} Tenant{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/tenants" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post" action="{{ '/admin/tenants/' + tenant.id|string + '/edit' if tenant else '/admin/tenants/new' }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome do Tenant *</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               value="{{ tenant.name if tenant else '' }}" required>
+                        <div class="form-text">Nome identificador do tenant/empresa</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="phone_number" class="form-label">Número de Telefone *</label>
+                        <input type="text" class="form-control" id="phone_number" name="phone_number" 
+                               value="{{ tenant.phone_number if tenant else '' }}" 
+                               placeholder="5511999999999" required>
+                        <div class="form-text">Número com código do país (ex: 5511999999999)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
+                                   {{ 'checked' if not tenant or tenant.is_active }}>
+                            <label class="form-check-label" for="is_active">Tenant Ativo</label>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="/admin/tenants" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> {{ 'Atualizar' if tenant else 'Criar' }} Tenant
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        {% if tenant %}
+        <div class="card mb-3">
+            <div class="card-header">Informações</div>
+            <div class="card-body">
+                <p><strong>ID:</strong><br><code>{{ tenant.id }}</code></p>
+                <p><strong>Criado em:</strong><br>{{ tenant.created_at.strftime('%d/%m/%Y %H:%M') if tenant.created_at else '-' }}</p>
+                <p><strong>Atualizado em:</strong><br>{{ tenant.updated_at.strftime('%d/%m/%Y %H:%M') if tenant.updated_at else '-' }}</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">API Key</div>
+            <div class="card-body">
+                <p class="text-muted small">A API Key é exibida apenas na criação do tenant por segurança.</p>
+                <form method="post" action="/admin/tenants/{{ tenant.id }}/regenerate-key">
+                    <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Regenerar a API Key invalidará a chave atual. Continuar?');">
+                        <i class="bi bi-arrow-repeat"></i> Regenerar API Key
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-header">Dica</div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    <i class="bi bi-info-circle"></i> Após criar o tenant, uma API Key será gerada automaticamente.
+                    Guarde-a em local seguro, pois ela não será exibida novamente.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

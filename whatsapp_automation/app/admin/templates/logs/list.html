@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Logs de Conversa{% endblock %}
+{% block page_title %}Logs de Conversa{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="tenant_id" class="form-label">Tenant</label>
+                <select class="form-select" id="tenant_id" name="tenant_id">
+                    <option value="">Todos</option>
+                    {% for tenant in tenants %}
+                    <option value="{{ tenant.id }}" {{ 'selected' if filters.tenant_id == tenant.id|string }}>{{ tenant.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="phone" class="form-label">Telefone</label>
+                <input type="text" class="form-control" id="phone" name="phone" 
+                       value="{{ filters.phone or '' }}" placeholder="5511999999999">
+            </div>
+            <div class="col-md-2">
+                <label for="message_type" class="form-label">Tipo</label>
+                <select class="form-select" id="message_type" name="message_type">
+                    <option value="">Todos</option>
+                    <option value="text" {{ 'selected' if filters.message_type == 'text' }}>Texto</option>
+                    <option value="audio" {{ 'selected' if filters.message_type == 'audio' }}>Áudio</option>
+                    <option value="image" {{ 'selected' if filters.message_type == 'image' }}>Imagem</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="date" class="form-label">Data</label>
+                <input type="date" class="form-control" id="date" name="date" value="{{ filters.date or '' }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">Filtrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if logs %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Tenant</th>
+                        <th>Remetente</th>
+                        <th>Tipo</th>
+                        <th>Conteúdo</th>
+                        <th>Resposta IA</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>
+                            <small>{{ log.created_at.strftime('%d/%m/%Y') if log.created_at else '-' }}</small>
+                            <br><small class="text-muted">{{ log.created_at.strftime('%H:%M:%S') if log.created_at else '' }}</small>
+                        </td>
+                        <td><small>{{ log.tenant_id[:8] if log.tenant_id else '-' }}...</small></td>
+                        <td><code>{{ log.sender_phone }}</code></td>
+                        <td>
+                            <span class="badge bg-{{ 'primary' if log.message_type == 'text' else 'info' if log.message_type == 'audio' else 'secondary' }}">
+                                {{ log.message_type }}
+                            </span>
+                        </td>
+                        <td>
+                            <span title="{{ log.content }}">
+                                {{ log.content[:40] if log.content else '-' }}{% if log.content and log.content|length > 40 %}...{% endif %}
+                            </span>
+                            {% if log.transcription %}
+                            <br><small class="text-muted"><i class="bi bi-mic"></i> {{ log.transcription[:30] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.ai_response %}
+                            <span class="text-success" title="{{ log.ai_response }}">
+                                {{ log.ai_response[:40] }}{% if log.ai_response|length > 40 %}...{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-info" 
+                                    onclick="showDetails('{{ log.id }}')" title="Ver detalhes">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item {{ 'disabled' if current_page == 1 }}">
+                    <a class="page-link" href="?page={{ current_page - 1 }}&{{ filters_query }}">Anterior</a>
+                </li>
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == current_page or (p >= current_page - 2 and p <= current_page + 2) %}
+                    <li class="page-item {{ 'active' if p == current_page }}">
+                        <a class="page-link" href="?page={{ p }}&{{ filters_query }}">{{ p }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {{ 'disabled' if current_page == total_pages }}">
+                    <a class="page-link" href="?page={{ current_page + 1 }}&{{ filters_query }}">Próximo</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-chat-dots fs-1 text-muted"></i>
+            <p class="text-muted mt-3">Nenhum log encontrado</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes da Mensagem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailContent">
+                <div class="text-center"><div class="spinner-border"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showDetails(id) {
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    document.getElementById('detailContent').innerHTML = '<div class="text-center"><div class="spinner-border"></div></div>';
+    modal.show();
+    
+    fetch('/admin/logs/' + id + '/detail')
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('detailContent').innerHTML = html;
+        })
+        .catch(err => {
+            document.getElementById('detailContent').innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes</div>';
+        });
+}
+</script>
+{% endblock %}

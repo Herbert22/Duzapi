@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card stat-card primary h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Tenants</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_tenants }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-building fs-2 text-primary opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card stat-card success h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Tenants Ativos</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.active_tenants }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-check-circle fs-2 text-success opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card stat-card info h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Configurações Bot</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_configs }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-gear fs-2 text-info opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card stat-card warning h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Mensagens Hoje</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.messages_today }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-chat-dots fs-2 text-warning opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-activity"></i> Atividade Recente
+            </div>
+            <div class="card-body">
+                {% if recent_messages %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Telefone</th>
+                                <th>Tipo</th>
+                                <th>Conteúdo</th>
+                                <th>Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for msg in recent_messages %}
+                            <tr>
+                                <td><code>{{ msg.sender_phone }}</code></td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if msg.message_type == 'text' else 'secondary' }}">
+                                        {{ msg.message_type }}
+                                    </span>
+                                </td>
+                                <td>{{ msg.content[:50] }}{% if msg.content|length > 50 %}...{% endif %}</td>
+                                <td>{{ msg.created_at.strftime('%d/%m %H:%M') if msg.created_at else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center my-4">Nenhuma mensagem recente</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-lightning"></i> Ações Rápidas
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/admin/tenants/new" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-circle"></i> Novo Tenant
+                    </a>
+                    <a href="/admin/configs/new" class="btn btn-outline-success">
+                        <i class="bi bi-gear"></i> Nova Configuração
+                    </a>
+                    <a href="/admin/logs" class="btn btn-outline-info">
+                        <i class="bi bi-chat-dots"></i> Ver Logs
+                    </a>
+                    <a href="/docs" target="_blank" class="btn btn-outline-secondary">
+                        <i class="bi bi-book"></i> API Documentation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
