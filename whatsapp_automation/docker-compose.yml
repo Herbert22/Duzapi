@@ -1,0 +1,348 @@
+version: '3.8'
+
+# ---------------------------------------------------------------------------
+# DuzAPI — Production-ready Docker Compose Stack
+# ---------------------------------------------------------------------------
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-backend-env: &backend-env
+  DEBUG: "${DEBUG:-false}"
+  LOG_LEVEL: "${LOG_LEVEL:-info}"
+  LOG_FORMAT: "${LOG_FORMAT:-json}"
+  SECRET_KEY: "${SECRET_KEY}"
+  BRIDGE_AUTH_TOKEN: "${BRIDGE_AUTH_TOKEN}"
+  WEBHOOK_SECRET: "${WEBHOOK_SECRET}"
+  ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
+  # PostgreSQL
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "${POSTGRES_USER:-whatsapp}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+  POSTGRES_DB: "${POSTGRES_DB:-whatsapp_automation}"
+  # MongoDB
+  MONGODB_URL: "mongodb://${MONGO_USER:-whatsapp}:${MONGO_PASSWORD}@mongodb:27017"
+  MONGODB_DB: "${MONGODB_DB:-whatsapp_logs}"
+  # Redis
+  REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
+  # OpenAI default fallback key
+  OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+  # CORS (comma-separated list of allowed origins)
+  CORS_ORIGINS_STR: "${CORS_ORIGINS_STR:-http://localhost:3001}"
+  # WhatsApp Bridge internal URL
+  WHATSAPP_BRIDGE_URL: "http://whatsapp_bridge:3000"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: wa_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-whatsapp}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-whatsapp_automation}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-whatsapp} -d ${POSTGRES_DB:-whatsapp_automation}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: "512m"
+
+  # ---------------------------------------------------------------------------
+  # MongoDB
+  # ---------------------------------------------------------------------------
+  mongodb:
+    image: mongo:6
+    container_name: wa_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_USER:-whatsapp}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_PASSWORD}"
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: "512m"
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: wa_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "384m"
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wa_backend
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: "1g"
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker
+  # ---------------------------------------------------------------------------
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wa_celery_worker
+    restart: unless-stopped
+    command: celery -A app.infrastructure.tasks.celery_app worker --loglevel=info --concurrency=4 -Q messages
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.infrastructure.tasks.celery_app", "inspect", "ping", "--timeout=10"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: "1g"
+
+  # ---------------------------------------------------------------------------
+  # Celery Beat (Scheduler)
+  # ---------------------------------------------------------------------------
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wa_celery_beat
+    restart: unless-stopped
+    command: celery -A app.infrastructure.tasks.celery_app beat --loglevel=info
+    environment:
+      <<: *backend-env
+    depends_on:
+      - redis
+      - celery_worker
+    healthcheck:
+      disable: true
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "256m"
+
+  # ---------------------------------------------------------------------------
+  # WhatsApp Bridge (WPPConnect)
+  # ---------------------------------------------------------------------------
+  whatsapp_bridge:
+    build:
+      context: ./whatsapp_bridge
+      dockerfile: Dockerfile
+    container_name: wa_whatsapp_bridge
+    restart: unless-stopped
+    environment:
+      NODE_ENV: "${NODE_ENV:-production}"
+      PORT: "3000"
+      BACKEND_WEBHOOK_URL: "http://backend:8000/api/v1/webhooks/whatsapp"
+      BRIDGE_AUTH_TOKEN: "${BRIDGE_AUTH_TOKEN}"
+      WEBHOOK_SECRET: "${WEBHOOK_SECRET}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
+      SESSIONS_PATH: "/app/sessions"
+      AUDIO_DOWNLOAD_PATH: "/app/downloads/audio"
+      AUDIO_BASE_URL: "http://whatsapp_bridge:3000/api/audio"
+      MAX_AUDIO_SIZE_BYTES: "${MAX_AUDIO_SIZE_BYTES:-5242880}"
+      WPP_HEADLESS: "true"
+      WPP_USE_CHROME: "false"
+      WPP_DEBUG: "${WPP_DEBUG:-false}"
+      WPP_LOG_QR: "true"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - whatsapp_sessions:/app/sessions
+      - whatsapp_downloads:/app/downloads
+      - ./whatsapp_bridge/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: "2g"
+
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: wa_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - backend
+      - whatsapp_bridge
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "128m"
+
+  # ---------------------------------------------------------------------------
+  # Backup service (daily at 02:00)
+  # ---------------------------------------------------------------------------
+  backup:
+    image: alpine:latest
+    container_name: wa_backup
+    restart: unless-stopped
+    entrypoint: >
+      sh -c "
+        apk add --no-cache postgresql-client mongodb-tools gzip &&
+        while true; do
+          now=$$(date +%H:%M);
+          if [ "$$now" = "02:00" ]; then
+            /scripts/backup.sh;
+            sleep 60;
+          fi;
+          sleep 30;
+        done
+      "
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-whatsapp}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-whatsapp_automation}"
+      MONGO_USER: "${MONGO_USER:-whatsapp}"
+      MONGO_PASSWORD: "${MONGO_PASSWORD}"
+    volumes:
+      - ./scripts/backup.sh:/scripts/backup.sh:ro
+      - ./backups:/backups
+    depends_on:
+      - postgres
+      - mongodb
+    networks:
+      - wa_network
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+  whatsapp_sessions:
+  whatsapp_downloads:
+
+networks:
+  wa_network:
+    driver: bridge

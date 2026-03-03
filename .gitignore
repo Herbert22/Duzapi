@@ -1,0 +1,80 @@
+# ============================================================
+# DuzAPI — .gitignore
+# ============================================================
+
+# ----- Ambiente e Segredos -----
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.cover
+*.log
+
+# ----- Node.js -----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ----- Next.js -----
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# ----- Docker -----
+# Não ignorar docker-compose.yml nem Dockerfiles
+
+# ----- Banco de dados / Backups -----
+backups/
+*.sql
+*.sql.gz
+*.archive.gz
+whatsapp_automation/logs/
+whatsapp_admin_panel/nextjs_space/logs/
+
+# ----- WhatsApp Bridge -----
+whatsapp_automation/whatsapp_bridge/sessions/
+whatsapp_automation/whatsapp_bridge/downloads/
+whatsapp_automation/whatsapp_bridge/logs/
+
+# ----- Nginx logs -----
+nginx/logs/
+
+# ----- IDEs -----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ----- Prisma -----
+# Manter schema.prisma e migrations; ignorar gerado
+whatsapp_admin_panel/nextjs_space/node_modules/.prisma/
+
+# ----- Misc -----
+*.tmp
+*.temp
+.cache/

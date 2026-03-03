@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Tenants{% endblock %}
+{% block page_title %}Gerenciar Tenants{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/tenants/new" class="btn btn-primary">
+    <i class="bi bi-plus-circle"></i> Novo Tenant
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        {% if tenants %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Telefone</th>
+                        <th>Status</th>
+                        <th>Criado em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tenant in tenants %}
+                    <tr>
+                        <td>
+                            <strong>{{ tenant.name }}</strong>
+                            <br><small class="text-muted">{{ tenant.id[:8] }}...</small>
+                        </td>
+                        <td><code>{{ tenant.phone_number }}</code></td>
+                        <td>
+                            {% if tenant.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ tenant.created_at.strftime('%d/%m/%Y %H:%M') if tenant.created_at else '-' }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="/admin/tenants/{{ tenant.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="/admin/configs?tenant_id={{ tenant.id }}" class="btn btn-outline-info" title="Configurações">
+                                    <i class="bi bi-gear"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-danger" title="Excluir" 
+                                        onclick="confirmDelete('{{ tenant.id }}', '{{ tenant.name }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-building fs-1 text-muted"></i>
+            <p class="text-muted mt-3">Nenhum tenant cadastrado</p>
+            <a href="/admin/tenants/new" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Criar primeiro tenant
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Deseja realmente excluir o tenant <strong id="deleteTenantName"></strong>?</p>
+                <p class="text-danger"><small>Esta ação não pode ser desfeita.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete(id, name) {
+    document.getElementById('deleteTenantName').textContent = name;
+    document.getElementById('deleteForm').action = '/admin/tenants/' + id + '/delete';
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+<div class="row">
+    <div class="col-md-6">
+        <h6 class="text-muted">Informações da Mensagem</h6>
+        <table class="table table-sm">
+            <tr><th>ID:</th><td><code>{{ log.id }}</code></td></tr>
+            <tr><th>Tenant ID:</th><td><code>{{ log.tenant_id }}</code></td></tr>
+            <tr><th>Session ID:</th><td><code>{{ log.session_id or '-' }}</code></td></tr>
+            <tr><th>Remetente:</th><td><code>{{ log.sender_phone }}</code></td></tr>
+            <tr><th>Tipo:</th><td><span class="badge bg-primary">{{ log.message_type }}</span></td></tr>
+            <tr><th>Data:</th><td>{{ log.created_at.strftime('%d/%m/%Y %H:%M:%S') if log.created_at else '-' }}</td></tr>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <h6 class="text-muted">Status de Processamento</h6>
+        <table class="table table-sm">
+            <tr>
+                <th>Processado:</th>
+                <td>
+                    {% if log.processed %}
+                    <span class="badge bg-success">Sim</span>
+                    {% else %}
+                    <span class="badge bg-warning">Não</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr><th>Processado em:</th><td>{{ log.processed_at.strftime('%d/%m/%Y %H:%M:%S') if log.processed_at else '-' }}</td></tr>
+        </table>
+    </div>
+</div>
+
+<hr>
+
+<div class="mb-3">
+    <h6 class="text-muted">Conteúdo Original</h6>
+    <div class="bg-light p-3 rounded">
+        <pre class="mb-0" style="white-space: pre-wrap;">{{ log.content or 'Sem conteúdo' }}</pre>
+    </div>
+</div>
+
+{% if log.transcription %}
+<div class="mb-3">
+    <h6 class="text-muted"><i class="bi bi-mic"></i> Transcrição de Áudio</h6>
+    <div class="bg-info bg-opacity-10 p-3 rounded">
+        <pre class="mb-0" style="white-space: pre-wrap;">{{ log.transcription }}</pre>
+    </div>
+</div>
+{% endif %}
+
+{% if log.ai_response %}
+<div class="mb-3">
+    <h6 class="text-muted"><i class="bi bi-robot"></i> Resposta da IA</h6>
+    <div class="bg-success bg-opacity-10 p-3 rounded">
+        <pre class="mb-0" style="white-space: pre-wrap;">{{ log.ai_response }}</pre>
+    </div>
+</div>
+{% endif %}

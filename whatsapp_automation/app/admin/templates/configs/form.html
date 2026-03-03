@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Editar' if config else 'Nova' }} Configuração{% endblock %}
+{% block page_title %}{{ 'Editar' if config else 'Nova' }} Configuração de Bot{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/configs" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+</a>
+{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ '/admin/configs/' + config.id|string + '/edit' if config else '/admin/configs/new' }}">
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Basic Info -->
+            <div class="card mb-3">
+                <div class="card-header">Informações Básicas</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="tenant_id" class="form-label">Tenant *</label>
+                        <select class="form-select" id="tenant_id" name="tenant_id" required {{ 'disabled' if config }}>
+                            <option value="">Selecione um tenant</option>
+                            {% for tenant in tenants %}
+                            <option value="{{ tenant.id }}" {{ 'selected' if (config and config.tenant_id|string == tenant.id|string) or (selected_tenant_id == tenant.id|string) }}>
+                                {{ tenant.name }} ({{ tenant.phone_number }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if config %}
+                        <input type="hidden" name="tenant_id" value="{{ config.tenant_id }}">
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="persona_name" class="form-label">Nome da Persona</label>
+                        <input type="text" class="form-control" id="persona_name" name="persona_name" 
+                               value="{{ config.persona_name if config else '' }}" placeholder="Ex: Assistente Vendas">
+                        <div class="form-text">Nome identificador desta configuração de bot</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
+                                   {{ 'checked' if config and config.is_active }}>
+                            <label class="form-check-label" for="is_active">Configuração Ativa</label>
+                        </div>
+                        <div class="form-text">Apenas uma configuração pode estar ativa por tenant</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Prompt -->
+            <div class="card mb-3">
+                <div class="card-header">Prompt do Sistema (Persona)</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="system_prompt" class="form-label">System Prompt *</label>
+                        <textarea class="form-control" id="system_prompt" name="system_prompt" rows="8" required>{{ config.system_prompt if config else 'Você é um assistente virtual amigável e prestativo. Responda de forma clara e objetiva.' }}</textarea>
+                        <div class="form-text">Define a personalidade e comportamento do bot. Use variáveis como {customer_name}, {company_name}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Triggers -->
+            <div class="card mb-3">
+                <div class="card-header">Configuração de Triggers</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Modo de Trigger *</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="trigger_mode" id="trigger_all" value="all" 
+                                   {{ 'checked' if not config or config.trigger_mode.value == 'all' }}>
+                            <label class="form-check-label" for="trigger_all">
+                                <strong>Todas as mensagens</strong> - Responde a qualquer mensagem recebida
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="trigger_mode" id="trigger_keywords" value="keywords" 
+                                   {{ 'checked' if config and config.trigger_mode.value == 'keywords' }}>
+                            <label class="form-check-label" for="trigger_keywords">
+                                <strong>Por palavras-chave</strong> - Responde apenas quando detectar palavras específicas
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="keywords_container" style="{{ '' if config and config.trigger_mode.value == 'keywords' else 'display: none;' }}">
+                        <label for="trigger_keywords_input" class="form-label">Palavras-chave</label>
+                        <input type="text" class="form-control" id="trigger_keywords_input" name="trigger_keywords" 
+                               value="{{ config.trigger_keywords if config else '' }}" placeholder="oi, olá, ajuda, informação">
+                        <div class="form-text">Separe as palavras por vírgula</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delays -->
+            <div class="card mb-3">
+                <div class="card-header">Delays de Resposta (Humanização)</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="delay_min" class="form-label">Delay Mínimo (segundos)</label>
+                                <input type="number" class="form-control" id="delay_min" name="delay_min" 
+                                       value="{{ config.delay_min if config else 1 }}" min="0" max="60">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="delay_max" class="form-label">Delay Máximo (segundos)</label>
+                                <input type="number" class="form-control" id="delay_max" name="delay_max" 
+                                       value="{{ config.delay_max if config else 5 }}" min="0" max="60">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text">O delay será um valor aleatório entre o mínimo e máximo, simulando digitação humana</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- OpenAI Config -->
+            <div class="card mb-3">
+                <div class="card-header">Configuração OpenAI</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="openai_api_key" class="form-label">API Key OpenAI</label>
+                        <input type="password" class="form-control" id="openai_api_key" name="openai_api_key" 
+                               value="{{ config.openai_api_key if config else '' }}" placeholder="sk-...">
+                        <div class="form-text">Deixe em branco para usar a chave padrão do sistema</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> {{ 'Atualizar' if config else 'Criar' }} Configuração
+                        </button>
+                        <a href="/admin/configs" class="btn btn-outline-secondary">Cancelar</a>
+                    </div>
+                </div>
+            </div>
+
+            {% if config %}
+            <div class="card mt-3">
+                <div class="card-header">Informações</div>
+                <div class="card-body">
+                    <p><strong>ID:</strong><br><code>{{ config.id }}</code></p>
+                    <p><strong>Criado em:</strong><br>{{ config.created_at.strftime('%d/%m/%Y %H:%M') if config.created_at else '-' }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('input[name="trigger_mode"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        document.getElementById('keywords_container').style.display = 
+            this.value === 'keywords' ? 'block' : 'none';
+    });
+});
+</script>
+{% endblock %}
