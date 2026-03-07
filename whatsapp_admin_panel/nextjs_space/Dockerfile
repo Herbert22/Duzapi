@@ -5,7 +5,7 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
-RUN npm ci && npx prisma generate
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi && npx prisma generate
 
 # --- Build ---
 FROM base AS builder
