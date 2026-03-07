@@ -131,10 +131,8 @@ export default function BotConfigsPage() {
     setSubmitting(true);
     try {
       // Only send openai_api_key if user typed a new one
-      const payload = { ...formData };
-      if (!payload.openai_api_key) {
-        delete payload.openai_api_key;
-      }
+      const { openai_api_key, ...rest } = formData;
+      const payload = openai_api_key ? formData : rest;
       const response = await fetch(`/api/proxy/bot-configs/${selectedConfig.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
