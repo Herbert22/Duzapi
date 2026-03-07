@@ -100,32 +100,68 @@ def _transcribe_audio_sync(audio_url: str, api_key: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Helper: AI response (sync openai)
+# Helper: AI response (sync — supports Gemini and OpenAI)
 # ---------------------------------------------------------------------------
 
 def _generate_ai_response_sync(
     messages: list,
     system_prompt: str,
     api_key: str,
-    model: str = "gpt-4o-mini",
+    provider: str = "gemini",
+    model: str = None,
 ) -> str:
+    try:
+        if provider == "gemini":
+            return _gemini_chat_sync(messages, system_prompt, api_key, model)
+        else:
+            return _openai_chat_sync(messages, system_prompt, api_key, model)
+    except Exception as e:
+        logger.error(f"AI request failed ({provider}): {e}")
+        return "Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente."
+
+
+def _gemini_chat_sync(messages: list, system_prompt: str, api_key: str, model: str = None) -> str:
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key)
+    model_name = model or "gemini-2.5-flash-lite"
+
+    contents = []
+    for msg in messages:
+        role = "model" if msg["role"] == "assistant" else "user"
+        contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
+
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        max_output_tokens=1000,
+        temperature=0.7,
+    )
+
+    response = client.models.generate_content(
+        model=model_name,
+        contents=contents,
+        config=config,
+    )
+    return response.text
+
+
+def _openai_chat_sync(messages: list, system_prompt: str, api_key: str, model: str = None) -> str:
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)
+    model_name = model or "gpt-4o-mini"
+
     openai_messages = [{"role": "system", "content": system_prompt}]
     openai_messages.extend(messages)
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=openai_messages,
-            temperature=0.7,
-            max_tokens=1000,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.error(f"OpenAI request failed: {e}")
-        return "Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente."
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=openai_messages,
+        temperature=0.7,
+        max_tokens=1000,
+    )
+    return response.choices[0].message.content
 
 
 # ---------------------------------------------------------------------------
@@ -134,9 +170,10 @@ def _generate_ai_response_sync(
 
 def _send_whatsapp_message_sync(session_name: str, to_phone: str, message: str) -> bool:
     phone = to_phone.replace("+", "").replace("-", "").replace(" ", "")
-    if not phone.endswith("@c.us"):
+    # Handle @lid (Linked ID) and @c.us formats from WhatsApp
+    if not phone.endswith("@c.us") and not phone.endswith("@lid"):
         phone = f"{phone}@c.us"
-    session = session_name.replace("+", "").replace("-", "").replace(" ", "")
+    session = session_name
 
     url = f"{settings.WHATSAPP_BRIDGE_URL}/api/{session}/send-message"
     headers = {
@@ -179,6 +216,7 @@ def process_and_respond_task(
     message_type: str,
     content: str,
     bot_config_id: str,
+    bridge_session_id: str = "",
 ):
     """
     Process incoming message and send AI response with humanised delay.
@@ -213,10 +251,28 @@ def process_and_respond_task(
         trigger_mode = bot_config.trigger_mode
         trigger_keywords = list(bot_config.trigger_keywords or [])
         raw_api_key = bot_config.openai_api_key
+        ai_provider = getattr(bot_config, "ai_provider", None) or settings.AI_PROVIDER
         tenant_phone = tenant.phone_number
 
-    # Decrypt OpenAI key (decrypt_value is transparent for plaintext)
-    api_key = decrypt_value(raw_api_key) if raw_api_key else settings.OPENAI_API_KEY
+    # Resolve API key based on provider (must be set in bot config)
+    if raw_api_key:
+        api_key = decrypt_value(raw_api_key)
+    elif ai_provider == "gemini" and settings.GOOGLE_API_KEY:
+        api_key = settings.GOOGLE_API_KEY
+    elif ai_provider == "openai" and settings.OPENAI_API_KEY:
+        api_key = settings.OPENAI_API_KEY
+    else:
+        api_key = None
+
+    if not api_key:
+        logger.error(f"No API key configured for provider '{ai_provider}' in bot config {bot_config_id}")
+        # Send error message to user
+        _send_whatsapp_message_sync(
+            session_name=bridge_session_id or tenant_phone,
+            to_phone=sender_phone,
+            message="Configuração incompleta: a chave da API de IA não foi definida. Entre em contato com o administrador.",
+        )
+        return {"success": False, "error": "No API key configured"}
 
     # ------------------------------------------------------------------
     # 2. Process content (transcribe audio if needed)
@@ -227,7 +283,9 @@ def process_and_respond_task(
 
     if message_type == "audio":
         logger.info(f"Transcribing audio for session: {session_id}")
-        transcription = _transcribe_audio_sync(content, api_key)
+        # Whisper always uses OpenAI key
+        whisper_key = settings.OPENAI_API_KEY or api_key
+        transcription = _transcribe_audio_sync(content, whisper_key)
         processed_content = transcription
 
         # Persist transcription to MongoDB
@@ -254,24 +312,32 @@ def process_and_respond_task(
     # 4. Retrieve conversation history (sync)
     # ------------------------------------------------------------------
     history = _get_conversation_history_sync(mongo_db, tenant_id, session_id)
+    logger.info(f"History loaded: {len(history)} messages for session {session_id}")
 
     # ------------------------------------------------------------------
-    # 5. Build context for OpenAI
+    # 5. Build context for AI
     # ------------------------------------------------------------------
     messages = []
     for msg in history:
         if msg.get("is_from_me"):
-            if msg.get("ai_response"):
-                messages.append({"role": "assistant", "content": msg["ai_response"]})
+            # Outgoing bot message — "content" holds the AI reply text
+            if msg.get("content"):
+                messages.append({"role": "assistant", "content": msg["content"]})
         else:
             msg_content = msg.get("transcription") or msg.get("content", "")
-            messages.append({"role": "user", "content": msg_content})
-    messages.append({"role": "user", "content": processed_content})
+            if msg_content:
+                messages.append({"role": "user", "content": msg_content})
+
+    # Avoid duplicating the current message if it's already in history
+    if not messages or messages[-1].get("content") != processed_content:
+        messages.append({"role": "user", "content": processed_content})
+
+    logger.info(f"AI context: {len(messages)} messages (roles: {[m['role'] for m in messages]})")
 
     # ------------------------------------------------------------------
     # 6. Generate AI response
     # ------------------------------------------------------------------
-    ai_response = _generate_ai_response_sync(messages, system_prompt, api_key)
+    ai_response = _generate_ai_response_sync(messages, system_prompt, api_key, provider=ai_provider)
 
     # ------------------------------------------------------------------
     # 7. Update incoming message log with AI response
@@ -297,8 +363,10 @@ def process_and_respond_task(
     # ------------------------------------------------------------------
     # 9. Send via Bridge
     # ------------------------------------------------------------------
+    # Use bridge session ID if available, fall back to tenant phone
+    send_session = bridge_session_id or tenant_phone
     send_success = _send_whatsapp_message_sync(
-        session_name=tenant_phone,
+        session_name=send_session,
         to_phone=sender_phone,
         message=ai_response,
     )

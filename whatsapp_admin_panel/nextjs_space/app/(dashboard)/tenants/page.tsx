@@ -13,13 +13,14 @@ import {
   Search,
   Edit,
   Trash2,
-  Key,
   Copy,
   RefreshCw,
   Power,
   Phone,
   Check,
   Loader2,
+  Key,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -32,10 +33,13 @@ export default function TenantsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [formData, setFormData] = useState({ name: '', phone_number: '' });
   const [submitting, setSubmitting] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedApiKey, setCopiedApiKey] = useState(false);
+  const [newApiKey, setNewApiKey] = useState('');
+  const [newApiKeyTenantName, setNewApiKeyTenantName] = useState('');
 
   useEffect(() => {
     fetchTenants();
@@ -56,6 +60,13 @@ export default function TenantsPage() {
     }
   };
 
+  const showApiKey = (apiKey: string, tenantName: string) => {
+    setNewApiKey(apiKey);
+    setNewApiKeyTenantName(tenantName);
+    setCopiedApiKey(false);
+    setIsApiKeyModalOpen(true);
+  };
+
   const handleCreate = async () => {
     if (!formData.name || !formData.phone_number) {
       toast.error('Preencha todos os campos');
@@ -69,10 +80,15 @@ export default function TenantsPage() {
         body: JSON.stringify(formData),
       });
       if (response.ok) {
-        toast.success('Tenant criado com sucesso!');
+        const data = await response.json();
         setIsCreateModalOpen(false);
         setFormData({ name: '', phone_number: '' });
         fetchTenants();
+        if (data?.api_key) {
+          showApiKey(data.api_key, data.name || formData.name);
+        } else {
+          toast.success('Tenant criado com sucesso!');
+        }
       } else {
         const error = await response.json();
         toast.error(error?.detail ?? 'Erro ao criar tenant');
@@ -147,12 +163,17 @@ export default function TenantsPage() {
 
   const handleRegenerateKey = async (tenant: Tenant) => {
     try {
-      const response = await fetch(`/api/proxy/tenants/${tenant.id}/regenerate-key`, {
+      const response = await fetch(`/api/proxy/tenants/${tenant.id}/regenerate-api-key`, {
         method: 'POST',
       });
       if (response.ok) {
-        toast.success('API Key regenerada com sucesso!');
+        const data = await response.json();
         fetchTenants();
+        if (data?.api_key) {
+          showApiKey(data.api_key, tenant.name);
+        } else {
+          toast.success('API Key regenerada com sucesso!');
+        }
       } else {
         toast.error('Erro ao regenerar API Key');
       }
@@ -161,12 +182,11 @@ export default function TenantsPage() {
     }
   };
 
-  const copyToClipboard = async (text: string, id: string) => {
+  const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedId(id);
+      setCopiedApiKey(true);
       toast.success('API Key copiada!');
-      setTimeout(() => setCopiedId(null), 2000);
     } catch {
       toast.error('Erro ao copiar');
     }
@@ -252,26 +272,16 @@ export default function TenantsPage() {
                         </td>
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
-                            <code className="text-xs bg-slate-700 px-2 py-1 rounded font-mono text-slate-300 max-w-[150px] truncate">
-                              {tenant?.api_key}
+                            <code className="text-xs bg-slate-700 px-2 py-1 rounded font-mono text-slate-400">
+                              ••••••••••••••••
                             </code>
                             <button
-                              onClick={() => copyToClipboard(tenant?.api_key ?? '', tenant?.id ?? '')}
-                              className="p-1 hover:bg-slate-600 rounded transition-colors"
-                              title="Copiar"
-                            >
-                              {copiedId === tenant?.id ? (
-                                <Check className="w-4 h-4 text-green-400" />
-                              ) : (
-                                <Copy className="w-4 h-4 text-slate-400" />
-                              )}
-                            </button>
-                            <button
                               onClick={() => handleRegenerateKey(tenant)}
-                              className="p-1 hover:bg-slate-600 rounded transition-colors"
-                              title="Regenerar Key"
+                              className="p-1 hover:bg-slate-600 rounded transition-colors flex items-center gap-1"
+                              title="Regenerar API Key (gera uma nova chave)"
                             >
-                              <RefreshCw className="w-4 h-4 text-slate-400" />
+                              <RefreshCw className="w-4 h-4 text-violet-400" />
+                              <span className="text-xs text-violet-400 hidden sm:inline">Nova Key</span>
                             </button>
                           </div>
                         </td>
@@ -325,6 +335,57 @@ export default function TenantsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* API Key Modal — shown after creation or regeneration */}
+      <Modal
+        open={isApiKeyModalOpen}
+        onOpenChange={(open) => {
+          setIsApiKeyModalOpen(open);
+          if (!open) {
+            setNewApiKey('');
+            setNewApiKeyTenantName('');
+            setCopiedApiKey(false);
+          }
+        }}
+        title="API Key Gerada"
+        description={`Chave do tenant "${newApiKeyTenantName}"`}
+      >
+        <div className="mt-4 space-y-4">
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+            <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-yellow-200">
+              Copie esta chave agora. Ela <strong>não será exibida novamente</strong>.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-sm bg-slate-700 px-3 py-2 rounded font-mono text-green-300 break-all select-all">
+              {newApiKey}
+            </code>
+            <button
+              onClick={() => copyToClipboard(newApiKey)}
+              className="p-2 hover:bg-slate-600 rounded transition-colors shrink-0"
+              title="Copiar"
+            >
+              {copiedApiKey ? (
+                <Check className="w-5 h-5 text-green-400" />
+              ) : (
+                <Copy className="w-5 h-5 text-slate-400" />
+              )}
+            </button>
+          </div>
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                copyToClipboard(newApiKey);
+                setTimeout(() => setIsApiKeyModalOpen(false), 500);
+              }}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copiar e Fechar
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Create Modal */}
       <Modal

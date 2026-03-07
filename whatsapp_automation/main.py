@@ -25,6 +25,8 @@ from app.core.logging_config import setup_logging, CorrelationIdMiddleware
 # Import routers
 from app.api.routes import tenants, bot_configs, messages, webhooks
 from app.admin.routes import router as admin_router
+from app.api.routes.admin_bot_configs import router as admin_bot_configs_router
+from app.api.routes.admin_messages import router as admin_messages_router
 
 # Configure structured logging before anything else
 setup_logging(level=settings.LOG_LEVEL, fmt=settings.LOG_FORMAT)
@@ -179,7 +181,17 @@ app.include_router(
     tags=["Webhooks"]
 )
 
-# Register Admin router
+# Register Admin routers
+app.include_router(
+    admin_bot_configs_router,
+    prefix=f"{settings.API_PREFIX}/admin/bot-configs",
+    tags=["Admin Bot Configs"],
+)
+app.include_router(
+    admin_messages_router,
+    prefix=f"{settings.API_PREFIX}/admin/messages",
+    tags=["Admin Messages"],
+)
 app.include_router(admin_router)
 
 

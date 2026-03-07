@@ -125,6 +125,26 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
+// DELETE /api/sessions/:sessionId  (requires auth)
+// ---------------------------------------------------------------------------
+router.delete(
+  '/sessions/:sessionId',
+  requireAuth,
+  param('sessionId').isString().trim().notEmpty(),
+  handleValidationErrors,
+  async (req, res) => {
+    const { sessionId } = req.params;
+    try {
+      const result = await sessionManager.deleteSession(sessionId);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      logger.error('Error deleting session', { sessionId, error: error.message });
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // GET /api/sessions/:sessionId/status  (requires auth)
 // ---------------------------------------------------------------------------
 router.get(

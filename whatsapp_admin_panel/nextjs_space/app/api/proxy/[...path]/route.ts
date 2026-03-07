@@ -8,6 +8,35 @@ export const dynamic = 'force-dynamic';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 const WHATSAPP_URL = process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3000';
+const BRIDGE_AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN || '';
+
+/** Paths that use the admin API (no tenant API key required) */
+const ADMIN_PATHS = ['bot-configs', 'messages'];
+
+/** Ensure backend paths end with / to avoid FastAPI 307 redirects that lose POST body */
+function backendUrl(path: string, searchParams?: string): string {
+  let base: string;
+  if (path.startsWith('whatsapp/')) {
+    base = `${WHATSAPP_URL}/api/${path.replace('whatsapp/', '')}`;
+  } else if (ADMIN_PATHS.some((p) => path === p || path.startsWith(`${p}/`))) {
+    base = `${BACKEND_URL}/api/v1/admin/${path}`;
+  } else {
+    base = `${BACKEND_URL}/api/v1/${path}`;
+  }
+  const withSlash = base.endsWith('/') ? base : `${base}/`;
+  return searchParams ? `${withSlash}?${searchParams}` : withSlash;
+}
+
+/** Build headers — adds Bearer token for bridge and admin requests */
+function buildHeaders(path: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (path.startsWith('whatsapp/') && BRIDGE_AUTH_TOKEN) {
+    headers['Authorization'] = `Bearer ${BRIDGE_AUTH_TOKEN}`;
+  } else if (ADMIN_PATHS.some((p) => path === p || path.startsWith(`${p}/`)) && BRIDGE_AUTH_TOKEN) {
+    headers['Authorization'] = `Bearer ${BRIDGE_AUTH_TOKEN}`;
+  }
+  return headers;
+}
 
 /**
  * Verifica autenticação e rate limiting
@@ -53,14 +82,12 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
   if (authError) return authError;
 
   const searchParams = request.nextUrl.searchParams.toString();
-  const url = path.startsWith('whatsapp/')
-    ? `${WHATSAPP_URL}/api/${path.replace('whatsapp/', '')}${searchParams ? `?${searchParams}` : ''}`
-    : `${BACKEND_URL}/api/v1/${path}${searchParams ? `?${searchParams}` : ''}`;
+  const url = backendUrl(path, searchParams || undefined);
 
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(path),
     });
 
     if (!response.ok) {
@@ -108,14 +135,12 @@ export async function POST(request: NextRequest, { params }: { params: { path: s
   if (authError) return authError;
 
   const body = await request.json().catch(() => ({}));
-  const url = path.startsWith('whatsapp/')
-    ? `${WHATSAPP_URL}/api/${path.replace('whatsapp/', '')}`
-    : `${BACKEND_URL}/api/v1/${path}`;
+  const url = backendUrl(path);
 
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(path),
       body: JSON.stringify(body),
     });
 
@@ -139,12 +164,12 @@ export async function PUT(request: NextRequest, { params }: { params: { path: st
   if (authError) return authError;
 
   const body = await request.json().catch(() => ({}));
-  const url = `${BACKEND_URL}/api/v1/${path}`;
+  const url = backendUrl(path);
 
   try {
     const response = await fetch(url, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(path),
       body: JSON.stringify(body),
     });
 
@@ -167,12 +192,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { path:
   const authError = await checkAuth(request, path);
   if (authError) return authError;
 
-  const url = `${BACKEND_URL}/api/v1/${path}`;
+  const url = backendUrl(path);
 
   try {
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(path),
     });
 
     if (!response.ok) {

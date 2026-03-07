@@ -55,7 +55,13 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # OpenAI (default fallback — can be overridden per tenant)
+    # AI Provider: "gemini" or "openai"
+    AI_PROVIDER: str = "gemini"
+
+    # Google Gemini (default provider)
+    GOOGLE_API_KEY: Optional[str] = None
+
+    # OpenAI (fallback — can be overridden per tenant)
     OPENAI_API_KEY: Optional[str] = None
 
     # CORS — comma-separated origins, e.g. "http://localhost:3001,https://app.example.com"

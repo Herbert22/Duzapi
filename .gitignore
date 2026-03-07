@@ -78,3 +78,6 @@ whatsapp_admin_panel/nextjs_space/node_modules/.prisma/
 *.tmp
 *.temp
 .cache/
+
+# ----- Claude -----
+.claude/

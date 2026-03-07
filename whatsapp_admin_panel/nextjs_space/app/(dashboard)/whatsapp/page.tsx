@@ -20,6 +20,7 @@ import {
   Link as LinkIcon,
   Check,
   AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -58,7 +59,7 @@ export default function WhatsAppPage() {
 
       if ((sessionsRes as Response).ok) {
         const sessionsData = await (sessionsRes as Response).json();
-        setSessions(sessionsData ?? []);
+        setSessions(Array.isArray(sessionsData) ? sessionsData : sessionsData?.sessions ?? []);
       }
       if ((tenantsRes as Response).ok) {
         const tenantsData = await (tenantsRes as Response).json();
@@ -106,21 +107,53 @@ export default function WhatsAppPage() {
     }
   };
 
+  const deleteSession = async (sessionId: string) => {
+    if (!confirm(`Tem certeza que deseja excluir a sessão "${sessionId}"? Isso removerá todos os dados da sessão.`)) return;
+    try {
+      const response = await fetch(`/api/proxy/whatsapp/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        toast.success('Sessão excluída!');
+        fetchData();
+      } else {
+        toast.error('Erro ao excluir sessão');
+      }
+    } catch (error) {
+      toast.error('Erro ao conectar com WhatsApp Bridge');
+    }
+  };
+
   const fetchQrCode = useCallback(async (sessionId: string) => {
     setQrLoading(true);
     try {
-      const response = await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/qrcode`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.qrcode) {
-          setQrCode(data.qrcode);
-          setIsQrModalOpen(true);
-        } else {
-          toast.error('QR Code não disponível');
+      // Start session first (if not already running, bridge handles idempotency)
+      await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/start`, {
+        method: 'POST',
+      });
+
+      // Wait for QR to be generated
+      let attempts = 0;
+      const maxAttempts = 10;
+      const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+      while (attempts < maxAttempts) {
+        await delay(attempts === 0 ? 2000 : 1500);
+        attempts++;
+
+        const response = await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/qrcode`);
+        if (response.ok) {
+          const data = await response.json();
+          const qr = data?.qrCode || data?.qrcode;
+          if (qr) {
+            setQrCode(qr);
+            setIsQrModalOpen(true);
+            fetchData();
+            return;
+          }
         }
-      } else {
-        toast.error('Erro ao obter QR Code');
       }
+      toast.error('QR Code não disponível. Tente novamente.');
     } catch (error) {
       toast.error('Erro ao conectar com WhatsApp Bridge');
     } finally {
@@ -154,15 +187,11 @@ export default function WhatsAppPage() {
         });
       }
 
-      toast.success('Sessão criada!');
+      toast.success('Sessão criada! Clique em "QR Code" para conectar.');
       setIsNewSessionModalOpen(false);
       setNewSessionId('');
       setSelectedTenantId('');
       fetchData();
-
-      // Get QR code
-      setSelectedSession(newSessionId);
-      setTimeout(() => fetchQrCode(newSessionId), 2000);
     } catch (error) {
       toast.error('Erro ao criar sessão');
     } finally {
@@ -341,6 +370,14 @@ export default function WhatsAppPage() {
                           Iniciar
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-400 hover:text-red-300 hover:border-red-500/50"
+                        onClick={() => deleteSession(session?.sessionId)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </motion.div>
                 ))}

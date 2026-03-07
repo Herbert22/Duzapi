@@ -69,9 +69,13 @@ export default function MessagesPage() {
       const response = await fetch(`/api/proxy/messages/history?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setMessages(data ?? []);
-        // For now, assume there might be more messages
-        setTotalMessages(data?.length >= itemsPerPage ? currentPage * itemsPerPage + 1 : data?.length ?? 0);
+        if (data?.items) {
+          setMessages(data.items);
+          setTotalMessages(data.total ?? 0);
+        } else {
+          setMessages(Array.isArray(data) ? data : []);
+          setTotalMessages(Array.isArray(data) ? data.length : 0);
+        }
       }
     } catch (error) {
       console.error('Error fetching messages:', error);

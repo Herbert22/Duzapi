@@ -100,7 +100,8 @@ export default function DashboardPage() {
         messagesStats = await (messagesStatsRes as Response).json();
       }
       if ((messagesRes as Response).ok) {
-        messages = await (messagesRes as Response).json();
+        const messagesData = await (messagesRes as Response).json();
+        messages = messagesData?.items ?? (Array.isArray(messagesData) ? messagesData : []);
       }
 
       setStats({

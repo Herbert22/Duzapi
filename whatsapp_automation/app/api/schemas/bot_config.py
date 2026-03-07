@@ -5,6 +5,12 @@ from uuid import UUID
 from enum import Enum
 
 
+class AIProviderEnum(str, Enum):
+    """AI provider options."""
+    GEMINI = "gemini"
+    OPENAI = "openai"
+
+
 class TriggerModeEnum(str, Enum):
     """Trigger mode options."""
     ALL = "all"
@@ -19,6 +25,7 @@ class BotConfigBase(BaseModel):
     response_delay_max: int = Field(default=5, ge=0, le=120, description="Maximum response delay (seconds)")
     trigger_mode: TriggerModeEnum = Field(default=TriggerModeEnum.ALL, description="When to trigger responses")
     trigger_keywords: List[str] = Field(default=[], description="Keywords to trigger response (if mode=keywords)")
+    ai_provider: AIProviderEnum = Field(default=AIProviderEnum.GEMINI, description="AI provider: gemini or openai")
     
     @model_validator(mode="after")
     def validate_delays(self):
@@ -36,7 +43,7 @@ class BotConfigBase(BaseModel):
 class BotConfigCreate(BotConfigBase):
     """Schema for creating a new bot config."""
     tenant_id: UUID = Field(..., description="ID of the tenant")
-    openai_api_key: Optional[str] = Field(None, description="OpenAI API key for this tenant")
+    openai_api_key: Optional[str] = Field(None, description="API key for AI provider (OpenAI or Gemini)")
     is_active: bool = Field(default=True)
 
 
@@ -48,6 +55,7 @@ class BotConfigUpdate(BaseModel):
     response_delay_max: Optional[int] = Field(None, ge=0, le=120)
     trigger_mode: Optional[TriggerModeEnum] = None
     trigger_keywords: Optional[List[str]] = None
+    ai_provider: Optional[AIProviderEnum] = None
     openai_api_key: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -59,11 +67,11 @@ class BotConfigResponse(BotConfigBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    has_openai_key: bool = Field(description="Whether tenant has custom OpenAI key")
-    
+    has_openai_key: bool = Field(description="Whether tenant has custom API key")
+
     class Config:
         from_attributes = True
-    
+
     @classmethod
     def from_orm_with_key_check(cls, obj):
         """Create response from ORM object, checking for API key presence."""
@@ -76,6 +84,7 @@ class BotConfigResponse(BotConfigBase):
             "response_delay_max": obj.response_delay_max,
             "trigger_mode": obj.trigger_mode,
             "trigger_keywords": obj.trigger_keywords or [],
+            "ai_provider": getattr(obj, "ai_provider", None) or "gemini",
             "is_active": obj.is_active,
             "created_at": obj.created_at,
             "updated_at": obj.updated_at,

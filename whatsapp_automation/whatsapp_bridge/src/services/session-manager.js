@@ -126,21 +126,37 @@ class SessionManager {
   }
 
   async restoreSessionsFromRedis() {
-    let sessionIds;
+    // 1. Try Redis first
+    let sessionIds = [];
     try {
       const redis = getRedis();
       sessionIds = await redis.smembers(REDIS_SESSIONS_KEY);
     } catch (err) {
-      logger.warn('Redis unavailable, skipping session restore', { error: err.message });
-      return;
+      logger.warn('Redis unavailable for session restore', { error: err.message });
+    }
+
+    // 2. Also discover sessions from disk (folders in sessionsPath)
+    try {
+      const entries = await fs.readdir(config.sessionsPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && !sessionIds.includes(entry.name)) {
+          sessionIds.push(entry.name);
+          // Re-register in Redis so future restarts find it
+          try {
+            const redis = getRedis();
+            await redis.sadd(REDIS_SESSIONS_KEY, entry.name);
+          } catch (_) { /* ignore */ }
+        }
+      }
+    } catch (err) {
+      logger.warn('Could not read sessions directory', { error: err.message });
     }
 
     if (!sessionIds || sessionIds.length === 0) return;
 
-    logger.info('Restoring sessions from Redis', { count: sessionIds.length });
+    logger.info('Restoring sessions', { count: sessionIds.length, ids: sessionIds });
 
     for (const sessionId of sessionIds) {
-      // Only try to reconnect if WPPConnect has a saved token file
       const tokenPath = path.join(config.sessionsPath, sessionId);
       try {
         await fs.access(tokenPath);
@@ -149,7 +165,6 @@ class SessionManager {
           logger.warn('Failed to restore session', { sessionId, error: err.message });
         });
       } catch {
-        // Token file doesn't exist — session needs a fresh QR scan
         logger.debug('No saved token for session, skipping restore', { sessionId });
         await this._removeSessionFromRedis(sessionId);
       }
@@ -171,6 +186,12 @@ class SessionManager {
     }
 
     logger.info('Starting session', { sessionId, tenantId });
+
+    // Clean stale Chromium lock files from previous container runs
+    const sessionFolder = path.join(config.sessionsPath, sessionId);
+    for (const lockFile of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+      try { await fs.unlink(path.join(sessionFolder, lockFile)); } catch (_) { /* ignore */ }
+    }
 
     return new Promise((resolve, reject) => {
       let qrCodeGenerated = false;
@@ -273,6 +294,28 @@ class SessionManager {
       logger.error('Error stopping session', { sessionId, error: error.message });
       throw error;
     }
+  }
+
+  async deleteSession(sessionId) {
+    // Stop the session first if running
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      try { await session.client.close(); } catch (_) { /* ignore */ }
+      this.sessions.delete(sessionId);
+    }
+    this.qrCodes.delete(sessionId);
+    await this._removeSessionFromRedis(sessionId);
+
+    // Remove session folder from disk
+    const sessionFolder = path.join(config.sessionsPath, sessionId);
+    try {
+      await fs.rm(sessionFolder, { recursive: true, force: true });
+      logger.info('Session deleted', { sessionId });
+    } catch (err) {
+      logger.warn('Could not delete session folder', { sessionId, error: err.message });
+    }
+
+    return { status: 'deleted', sessionId };
   }
 
   // --------------------------------------------------------------------------
