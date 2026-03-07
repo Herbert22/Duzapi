@@ -63,17 +63,17 @@ REDIS_PASSWORD=$(openssl rand -hex 24)
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 MONGO_PASSWORD=$(openssl rand -hex 24)
 
-# Gerar Fernet key (precisa de python3)
-ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null || pip3 install cryptography && python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+# Gerar Fernet key (base64 de 32 bytes, compatível com cryptography.fernet)
+ENCRYPTION_KEY=$(openssl rand -base64 32 | tr -d '\n' | sed 's/+/-/g; s/\//_/g')=
 
-# Aplicar no .env
-sed -i "s|CHANGE_ME_min_32_chars|$SECRET_KEY|" .env
-sed -i "s|CHANGE_ME_bridge_token|$BRIDGE_AUTH_TOKEN|" .env
-sed -i "s|CHANGE_ME_webhook_secret|$WEBHOOK_SECRET|" .env
-sed -i "s|CHANGE_ME_fernet_key|$ENCRYPTION_KEY|" .env
-sed -i "s|CHANGE_ME_redis_password|$REDIS_PASSWORD|" .env
-sed -i "s|CHANGE_ME_postgres_password|$POSTGRES_PASSWORD|" .env
-sed -i "s|CHANGE_ME_mongo_password|$MONGO_PASSWORD|" .env
+# Aplicar no .env (usa # como delimitador para evitar conflito com caracteres especiais)
+sed -i "s#CHANGE_ME_min_32_chars#$SECRET_KEY#" .env
+sed -i "s#CHANGE_ME_bridge_token#$BRIDGE_AUTH_TOKEN#" .env
+sed -i "s#CHANGE_ME_webhook_secret#$WEBHOOK_SECRET#" .env
+sed -i "s#CHANGE_ME_fernet_key#$ENCRYPTION_KEY#" .env
+sed -i "s#CHANGE_ME_redis_password#$REDIS_PASSWORD#" .env
+sed -i "s#CHANGE_ME_postgres_password#$POSTGRES_PASSWORD#" .env
+sed -i "s#CHANGE_ME_mongo_password#$MONGO_PASSWORD#" .env
 
 echo "Credenciais geradas! Edite o .env para adicionar API keys:"
 echo "  nano .env"
