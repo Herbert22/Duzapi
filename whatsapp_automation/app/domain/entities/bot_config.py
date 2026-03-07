@@ -33,8 +33,11 @@ class BotConfig(Base):
     trigger_mode = Column(Enum(TriggerMode), default=TriggerMode.ALL, nullable=False)
     trigger_keywords = Column(ARRAY(String), default=[], nullable=False)
     
-    # OpenAI API key (tenant-specific)
-    openai_api_key = Column(String(255), nullable=True)  # Encrypted in production
+    # AI provider: "gemini" or "openai"
+    ai_provider = Column(String(20), default="gemini", nullable=False, server_default="gemini")
+
+    # API key for AI provider (tenant-specific, encrypted in production)
+    openai_api_key = Column(String(255), nullable=True)
     
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -19,26 +19,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class WhatsAppWebhookPayload(BaseModel):
-    """Payload received from WPPConnect bridge."""
-    event: str = Field(..., description="Event type (message, ack, etc)")
-    session: str = Field(..., description="WhatsApp session name (phone number)")
-
-    # Message data
-    from_number: Optional[str] = Field(None, alias="from", description="Sender phone number")
-    to_number: Optional[str] = Field(None, alias="to", description="Receiver phone number")
-    body: Optional[str] = Field(None, description="Message content")
-    type: Optional[str] = Field(None, description="Message type (chat, ptt, audio, etc)")
-    message_id: Optional[str] = Field(None, alias="id", description="WhatsApp message ID")
-    timestamp: Optional[int] = Field(None, description="Unix timestamp")
-    is_group: Optional[bool] = Field(False, description="Whether message is from group")
-
-    # Media data
-    media_url: Optional[str] = Field(None, description="URL for media content")
-    mime_type: Optional[str] = Field(None, description="MIME type of media")
-
-    class Config:
-        populate_by_name = True
+class BridgeWebhookPayload(BaseModel):
+    """Payload received from our Node.js bridge (already processed)."""
+    tenant_id: str = Field(..., description="Tenant UUID")
+    session_id: str = Field(..., description="Bridge session ID")
+    sender_phone: str = Field(..., description="Sender phone number")
+    message_type: str = Field(..., description="Message type: text, audio")
+    content: Optional[str] = Field(None, description="Message text content")
+    audio_url: Optional[str] = Field(None, description="URL for audio file")
+    message_id: Optional[str] = Field(None, description="WhatsApp message ID")
+    timestamp: Optional[str] = Field(None, description="ISO timestamp")
+    error: Optional[str] = Field(None, description="Error if media processing failed")
 
 
 class WebhookResponse(BaseModel):
@@ -48,25 +39,23 @@ class WebhookResponse(BaseModel):
     processing: bool = False
 
 
-def map_whatsapp_type_to_message_type(wa_type: str) -> MessageType:
-    """Map WhatsApp message type to internal MessageType."""
+def map_bridge_type_to_message_type(bridge_type: str) -> MessageType:
+    """Map bridge message type string to internal MessageType."""
     type_mapping = {
-        "chat": MessageType.TEXT,
-        "ptt": MessageType.AUDIO,
+        "text": MessageType.TEXT,
         "audio": MessageType.AUDIO,
         "image": MessageType.IMAGE,
         "video": MessageType.VIDEO,
         "document": MessageType.DOCUMENT,
         "sticker": MessageType.STICKER,
-        "location": MessageType.LOCATION,
-        "vcard": MessageType.CONTACT,
     }
-    return type_mapping.get(wa_type, MessageType.TEXT)
+    return type_mapping.get(bridge_type, MessageType.TEXT)
 
 
 async def _verify_bridge_signature(request: Request) -> None:
     """Raise HTTP 401 if the HMAC signature from the bridge is invalid."""
-    from app.core.config import settings
+    from app.core.config import get_settings
+    settings = get_settings()
     # In dev mode with default secret, skip verification to ease setup
     if settings.WEBHOOK_SECRET == "dev-webhook-secret-change-in-production":
         return
@@ -83,10 +72,10 @@ async def _verify_bridge_signature(request: Request) -> None:
 @router.post("/whatsapp", response_model=WebhookResponse)
 async def receive_whatsapp_message(
     request: Request,
-    payload: WhatsAppWebhookPayload,
+    payload: BridgeWebhookPayload,
     db: AsyncSession = Depends(get_db),
 ):
-    """Receive incoming WhatsApp messages from WPPConnect bridge.
+    """Receive incoming WhatsApp messages from the Node.js bridge.
 
     Authenticates via HMAC signature, deduplicates by message ID,
     then queues processing through Celery.
@@ -95,19 +84,12 @@ async def receive_whatsapp_message(
 
     logger.info(
         "Webhook received",
-        extra={"event": payload.event, "session": payload.session},
+        extra={
+            "tenant_id": payload.tenant_id,
+            "sender_phone": payload.sender_phone,
+            "message_type": payload.message_type,
+        },
     )
-
-    # Only process incoming messages
-    if payload.event != "message":
-        return WebhookResponse(
-            status="ignored",
-            message=f"Event type '{payload.event}' ignored",
-        )
-
-    # Skip group messages
-    if payload.is_group:
-        return WebhookResponse(status="ignored", message="Group messages not supported")
 
     # Deduplicate by WhatsApp message ID (5-minute window)
     if payload.message_id:
@@ -116,15 +98,12 @@ async def receive_whatsapp_message(
             logger.info("Duplicate message ignored", extra={"message_id": payload.message_id})
             return WebhookResponse(status="duplicate", message="Message already processed")
 
-    # Find tenant by session (phone number)
+    # Find tenant by ID
     tenant_repo = TenantRepository(db)
-    phone_number = payload.session.replace("@c.us", "").replace("-", "")
-    tenant = await tenant_repo.get_by_phone(phone_number)
-    if not tenant:
-        tenant = await tenant_repo.get_by_phone(f"+{phone_number}")
+    tenant = await tenant_repo.get_by_id(payload.tenant_id)
 
     if not tenant:
-        logger.warning("Tenant not found", extra={"session": payload.session})
+        logger.warning("Tenant not found", extra={"tenant_id": payload.tenant_id})
         return WebhookResponse(status="error", message="Tenant not found")
 
     if not tenant.is_active:
@@ -138,16 +117,15 @@ async def receive_whatsapp_message(
         return WebhookResponse(status="ignored", message="No active bot configuration")
 
     # Determine message type and content
-    message_type = map_whatsapp_type_to_message_type(payload.type or "chat")
-    content = payload.body or payload.media_url or ""
+    message_type = map_bridge_type_to_message_type(payload.message_type)
+    content = payload.content or payload.audio_url or ""
 
-    # Build session ID
-    sender_phone = (payload.from_number or "").replace("@c.us", "").replace("@s.whatsapp.net", "")
-    session_id = f"{tenant.id}_{sender_phone}"
+    # Build session ID for conversation tracking
+    session_id = f"{tenant.id}_{payload.sender_phone}"
 
     # Check trigger mode (skip if not matching)
-    if not bot_config.should_respond(content):
-        logger.info("Message filtered by trigger mode", extra={"trigger_mode": bot_config.trigger_mode})
+    if message_type == MessageType.TEXT and not bot_config.should_respond(content):
+        logger.info("Message filtered by trigger mode", extra={"trigger_mode": str(bot_config.trigger_mode)})
         return WebhookResponse(status="filtered", message="Message did not match trigger criteria")
 
     # Persist the incoming message log
@@ -156,7 +134,7 @@ async def receive_whatsapp_message(
     message_log = MessageLog(
         tenant_id=str(tenant.id),
         session_id=session_id,
-        sender_phone=sender_phone,
+        sender_phone=payload.sender_phone,
         message_type=message_type,
         content=content,
         message_id=payload.message_id,
@@ -170,10 +148,11 @@ async def receive_whatsapp_message(
         process_and_respond_task.delay(
             tenant_id=str(tenant.id),
             session_id=session_id,
-            sender_phone=sender_phone,
+            sender_phone=payload.sender_phone,
             message_type=message_type.value,
             content=content,
             bot_config_id=str(bot_config.id),
+            bridge_session_id=payload.session_id,
         )
         logger.info("Message queued for Celery", extra={"session_id": session_id})
     except Exception as exc:

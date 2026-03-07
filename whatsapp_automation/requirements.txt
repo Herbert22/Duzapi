@@ -34,8 +34,9 @@ slowapi>=0.1.9
 # Logging
 python-json-logger>=2.0.7
 
-# OpenAI
+# AI Providers
 openai==1.12.0
+google-genai>=1.0.0
 
 # HTTP Clients
 httpx==0.26.0

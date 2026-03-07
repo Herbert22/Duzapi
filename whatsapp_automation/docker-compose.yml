@@ -29,7 +29,9 @@ x-backend-env: &backend-env
   MONGODB_DB: "${MONGODB_DB:-whatsapp_logs}"
   # Redis
   REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
-  # OpenAI default fallback key
+  # AI Provider
+  AI_PROVIDER: "${AI_PROVIDER:-gemini}"
+  GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
   OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
   # CORS (comma-separated list of allowed origins)
   CORS_ORIGINS_STR: "${CORS_ORIGINS_STR:-http://localhost:3001}"
@@ -51,8 +53,8 @@ services:
       POSTGRES_DB: "${POSTGRES_DB:-whatsapp_automation}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+    # ports:
+    #   - "5433:5432"  # Uncomment for local development
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-whatsapp} -d ${POSTGRES_DB:-whatsapp_automation}"]
       interval: 10s
@@ -79,13 +81,14 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: "${MONGO_PASSWORD}"
     volumes:
       - mongodb_data:/data/db
-    ports:
-      - "27017:27017"
+    # ports:
+    #   - "27017:27017"  # Uncomment for local development
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 15s
+      timeout: 10s
       retries: 5
+      start_period: 30s
     networks:
       - wa_network
     logging: *default-logging
@@ -110,8 +113,8 @@ services:
       --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"  # Uncomment for local development
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -137,8 +140,8 @@ services:
     restart: unless-stopped
     environment:
       <<: *backend-env
-    ports:
-      - "8000:8000"
+    # ports:
+    #   - "8000:8000"  # Uncomment for local development
     depends_on:
       postgres:
         condition: service_healthy
@@ -249,8 +252,8 @@ services:
       WPP_DEBUG: "${WPP_DEBUG:-false}"
       WPP_LOG_QR: "true"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
-    ports:
-      - "3000:3000"
+    # ports:
+    #   - "3000:3000"  # Uncomment for local development
     depends_on:
       backend:
         condition: service_healthy
@@ -276,6 +279,40 @@ services:
           memory: "2g"
 
   # ---------------------------------------------------------------------------
+  # Next.js Admin Panel
+  # ---------------------------------------------------------------------------
+  admin_panel:
+    build:
+      context: ../whatsapp_admin_panel/nextjs_space
+      dockerfile: Dockerfile
+    container_name: wa_admin_panel
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost}"
+      NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-${SECRET_KEY}}"
+      BACKEND_URL: "http://backend:8000"
+      BACKEND_API_URL: "http://backend:8000/api/v1"
+      WHATSAPP_BRIDGE_URL: "http://whatsapp_bridge:3000"
+      BRIDGE_AUTH_TOKEN: "${BRIDGE_AUTH_TOKEN}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-whatsapp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-whatsapp_automation}"
+      ASAAS_API_KEY: "${ASAAS_API_KEY:-}"
+      ASAAS_WEBHOOK_TOKEN: "${ASAAS_WEBHOOK_TOKEN:-}"
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - wa_network
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: "512m"
+
+  # ---------------------------------------------------------------------------
   # Nginx Reverse Proxy
   # ---------------------------------------------------------------------------
   nginx:
@@ -293,6 +330,7 @@ services:
     depends_on:
       - backend
       - whatsapp_bridge
+      - admin_panel
     networks:
       - wa_network
     logging: *default-logging

@@ -5,7 +5,7 @@ Responsibilities:
 - Check if bot should respond (trigger mode)
 - Retrieve conversation history
 - Process text or audio (transcribe if audio)
-- Build context and send to OpenAI
+- Build context and send to AI provider (Gemini or OpenAI)
 - Return response
 """
 
@@ -17,10 +17,10 @@ from uuid import UUID
 from app.core.database import get_mongodb, AsyncSessionLocal
 from app.infrastructure.repositories.message_log_repository import MessageLogRepository
 from app.infrastructure.repositories.bot_config_repository import BotConfigRepository
-from app.infrastructure.external_services.openai_service import (
-    OpenAIService,
+from app.infrastructure.external_services.ai_service import (
+    AIService,
     ChatMessage,
-    get_openai_service
+    get_ai_service
 )
 from app.domain.entities.message_log import MessageLog, MessageType
 from app.domain.entities.bot_config import BotConfig, TriggerMode
@@ -48,19 +48,11 @@ class MessageProcessor:
     def __init__(
         self,
         bot_config: BotConfig,
-        openai_service: OpenAIService,
+        ai_service: AIService,
         message_repo: MessageLogRepository
     ):
-        """
-        Initialize message processor.
-        
-        Args:
-            bot_config: Bot configuration for the tenant
-            openai_service: OpenAI service instance
-            message_repo: Message log repository
-        """
         self.bot_config = bot_config
-        self.openai_service = openai_service
+        self.ai_service = ai_service
         self.message_repo = message_repo
     
     @classmethod
@@ -91,14 +83,19 @@ class MessageProcessor:
             if not bot_config:
                 raise ValueError(f"Bot config not found: {bot_config_id}")
         
-        # Create OpenAI service with tenant's API key or default (decrypt if encrypted)
+        # Resolve AI provider and key
         from app.core.security import decrypt_value
-        api_key = decrypt_value(bot_config.openai_api_key) if bot_config.openai_api_key else settings.OPENAI_API_KEY
-        openai_service = get_openai_service(api_key=api_key)
-        
+        ai_provider = getattr(bot_config, "ai_provider", None) or settings.AI_PROVIDER
+        raw_key = bot_config.openai_api_key
+        if ai_provider == "gemini":
+            api_key = decrypt_value(raw_key) if raw_key else settings.GOOGLE_API_KEY
+        else:
+            api_key = decrypt_value(raw_key) if raw_key else settings.OPENAI_API_KEY
+        ai_service = get_ai_service(provider=ai_provider, api_key=api_key)
+
         return cls(
             bot_config=bot_config,
-            openai_service=openai_service,
+            ai_service=ai_service,
             message_repo=message_repo
         )
     
@@ -149,7 +146,7 @@ class MessageProcessor:
             Transcribed text
         """
         try:
-            transcription = await self.openai_service.transcribe_audio(
+            transcription = await self.ai_service.transcribe_audio(
                 audio_url=audio_url,
                 language="pt"
             )
@@ -164,7 +161,7 @@ class MessageProcessor:
         current_content: str
     ) -> List[ChatMessage]:
         """
-        Build conversation context from history for OpenAI.
+        Build conversation context from history for AI provider.
         
         Args:
             history: List of previous messages
@@ -205,7 +202,7 @@ class MessageProcessor:
         messages: List[ChatMessage]
     ) -> str:
         """
-        Generate AI response using OpenAI.
+        Generate AI response.
         
         Args:
             messages: Conversation context
@@ -217,7 +214,7 @@ class MessageProcessor:
         system_prompt = self.bot_config.system_prompt
         
         try:
-            response = await self.openai_service.chat_completion(
+            response = await self.ai_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt
             )

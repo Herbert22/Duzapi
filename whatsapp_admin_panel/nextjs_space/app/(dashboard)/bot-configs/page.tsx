@@ -48,6 +48,7 @@ export default function BotConfigsPage() {
     response_delay_max: 3,
     trigger_mode: 'all' as 'all' | 'keywords',
     trigger_keywords: [] as string[],
+    ai_provider: 'gemini' as 'gemini' | 'openai',
     openai_api_key: '',
   });
 
@@ -87,14 +88,19 @@ export default function BotConfigsPage() {
       response_delay_max: 3,
       trigger_mode: 'all',
       trigger_keywords: [],
+      ai_provider: 'gemini',
       openai_api_key: '',
     });
     setKeywordInput('');
   };
 
   const handleCreate = async () => {
-    if (!formData.tenant_id || !formData.persona_name || !formData.system_prompt || !formData.openai_api_key) {
+    if (!formData.tenant_id || !formData.persona_name || !formData.system_prompt) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+    if (!formData.openai_api_key) {
+      toast.error('A chave da API de IA é obrigatória');
       return;
     }
     setSubmitting(true);
@@ -124,10 +130,15 @@ export default function BotConfigsPage() {
     if (!selectedConfig) return;
     setSubmitting(true);
     try {
+      // Only send openai_api_key if user typed a new one
+      const payload = { ...formData };
+      if (!payload.openai_api_key) {
+        delete payload.openai_api_key;
+      }
       const response = await fetch(`/api/proxy/bot-configs/${selectedConfig.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       if (response.ok) {
         toast.success('Configuração atualizada com sucesso!');
@@ -302,6 +313,14 @@ export default function BotConfigsPage() {
                         <MessageCircle className="w-3 h-3" />
                         {config?.trigger_mode === 'all' ? 'Todas' : 'Keywords'}
                       </span>
+                      <span className="flex items-center gap-1">
+                        <Bot className="w-3 h-3" />
+                        {(config as any)?.ai_provider === 'openai' ? 'OpenAI' : 'Gemini'}
+                      </span>
+                      <span className={`flex items-center gap-1 ${(config as any)?.has_openai_key ? 'text-green-400' : 'text-red-400'}`}>
+                        <Key className="w-3 h-3" />
+                        {(config as any)?.has_openai_key ? 'API Key OK' : 'Sem API Key'}
+                      </span>
                     </div>
 
                     {config?.trigger_mode === 'keywords' && config?.trigger_keywords?.length > 0 && (
@@ -342,7 +361,8 @@ export default function BotConfigsPage() {
                             response_delay_max: config?.response_delay_max ?? 3,
                             trigger_mode: config?.trigger_mode ?? 'all',
                             trigger_keywords: config?.trigger_keywords ?? [],
-                            openai_api_key: config?.openai_api_key ?? '',
+                            ai_provider: (config as any)?.ai_provider ?? 'gemini',
+                            openai_api_key: '',
                           });
                           setIsEditModalOpen(true);
                         }}
@@ -495,14 +515,39 @@ export default function BotConfigsPage() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">OpenAI API Key *</label>
-            <Input
-              type="password"
-              placeholder="sk-..."
-              value={formData.openai_api_key}
-              onChange={(e) => setFormData({ ...formData, openai_api_key: e.target.value })}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300">Provedor de IA</label>
+              <select
+                value={formData.ai_provider}
+                onChange={(e) => setFormData({ ...formData, ai_provider: e.target.value as 'gemini' | 'openai' })}
+                className="w-full h-10 px-4 rounded-xl border border-slate-600 bg-slate-800/50 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              >
+                <option value="gemini">Google Gemini (recomendado)</option>
+                <option value="openai">OpenAI GPT</option>
+              </select>
+              <p className="text-xs text-slate-500">Gemini é ~30x mais barato que OpenAI</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300">
+                API Key {isEditModalOpen && (selectedConfig as any)?.has_openai_key ? '' : '*'}
+              </label>
+              <Input
+                type="password"
+                placeholder={
+                  isEditModalOpen && (selectedConfig as any)?.has_openai_key
+                    ? '••••••••  (deixe vazio para manter a chave atual)'
+                    : formData.ai_provider === 'gemini' ? 'AIza...' : 'sk-...'
+                }
+                value={formData.openai_api_key}
+                onChange={(e) => setFormData({ ...formData, openai_api_key: e.target.value })}
+              />
+              <p className="text-xs text-slate-500">
+                {isEditModalOpen && (selectedConfig as any)?.has_openai_key
+                  ? 'Chave já configurada — preencha apenas para substituir'
+                  : 'Obrigatória — chave do provedor selecionado'}
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">

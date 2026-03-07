@@ -119,14 +119,22 @@
         </div>
 
         <div class="col-lg-4">
-            <!-- OpenAI Config -->
+            <!-- AI Provider Config -->
             <div class="card mb-3">
-                <div class="card-header">Configuração OpenAI</div>
+                <div class="card-header">Provedor de IA</div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label for="openai_api_key" class="form-label">API Key OpenAI</label>
-                        <input type="password" class="form-control" id="openai_api_key" name="openai_api_key" 
-                               value="{{ config.openai_api_key if config else '' }}" placeholder="sk-...">
+                        <label for="ai_provider" class="form-label">Provedor</label>
+                        <select class="form-select" id="ai_provider" name="ai_provider">
+                            <option value="gemini" {{ 'selected' if not config or (config.ai_provider or 'gemini') == 'gemini' }}>Google Gemini (recomendado)</option>
+                            <option value="openai" {{ 'selected' if config and config.ai_provider == 'openai' }}>OpenAI GPT</option>
+                        </select>
+                        <div class="form-text">Gemini é mais barato. OpenAI tem melhor qualidade.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="openai_api_key" class="form-label">API Key (opcional)</label>
+                        <input type="password" class="form-control" id="openai_api_key" name="openai_api_key"
+                               value="{{ config.openai_api_key if config else '' }}" placeholder="Chave do provedor selecionado">
                         <div class="form-text">Deixe em branco para usar a chave padrão do sistema</div>
                     </div>
                 </div>

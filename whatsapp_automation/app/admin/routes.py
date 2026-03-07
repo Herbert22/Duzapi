@@ -303,6 +303,7 @@ async def create_config(
     trigger_keywords: str = Form(""),
     delay_min: int = Form(1),
     delay_max: int = Form(5),
+    ai_provider: str = Form("gemini"),
     openai_api_key: str = Form(""),
     is_active: bool = Form(False),
     db: AsyncSession = Depends(get_db)
@@ -317,6 +318,7 @@ async def create_config(
             trigger_keywords=trigger_keywords or None,
             delay_min=delay_min,
             delay_max=delay_max,
+            ai_provider=ai_provider,
             openai_api_key=openai_api_key or None,
             is_active=is_active if is_active else False
         )
@@ -382,6 +384,7 @@ async def update_config(
     trigger_keywords: str = Form(""),
     delay_min: int = Form(1),
     delay_max: int = Form(5),
+    ai_provider: str = Form("gemini"),
     openai_api_key: str = Form(""),
     is_active: bool = Form(False),
     db: AsyncSession = Depends(get_db)
@@ -392,13 +395,14 @@ async def update_config(
         if not config:
             flash(request, "Configuração não encontrada.", "danger")
             return RedirectResponse("/admin/configs", status_code=303)
-        
+
         config.persona_name = persona_name or None
         config.system_prompt = system_prompt
         config.trigger_mode = TriggerMode(trigger_mode)
         config.trigger_keywords = trigger_keywords or None
         config.delay_min = delay_min
         config.delay_max = delay_max
+        config.ai_provider = ai_provider
         config.openai_api_key = openai_api_key or None
         
         # Handle is_active toggle
