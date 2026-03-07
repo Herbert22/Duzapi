@@ -1,5 +1,8 @@
 # Deploy DuzAPI na VPS — Passo a Passo
 
+ssh root@185.173.110.162
++W+;bws8GWqTm8J'UHy4
+
 ## Pré-requisitos na VPS
 
 - Ubuntu 22.04+ ou Debian 12+
@@ -38,7 +41,7 @@ exit
 ```bash
 cd /opt
 sudo mkdir -p duzapi && sudo chown $USER:$USER duzapi
-git clone -b hework https://github.com/Herbert22/Duzapi.git duzapi
+git clone https://github.com/Herbert22/Duzapi.git duzapi
 cd duzapi
 ```
 
