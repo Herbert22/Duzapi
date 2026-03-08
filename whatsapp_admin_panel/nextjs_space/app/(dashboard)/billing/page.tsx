@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { CreditCard, Calendar, Users, MessageSquare, AlertCircle, CheckCircle } from 'lucide-react';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const BRIDGE_AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN || '';
+
 async function getBillingData(userId: string) {
   const [user, subscription] = await Promise.all([
     prisma.user.findUnique({
@@ -17,6 +20,39 @@ async function getBillingData(userId: string) {
   ]);
 
   return { user, subscription };
+}
+
+async function getUsageData(): Promise<{ tenantCount: number; messageCount: number }> {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(BRIDGE_AUTH_TOKEN ? { Authorization: `Bearer ${BRIDGE_AUTH_TOKEN}` } : {}),
+    };
+
+    const [tenantsRes, statsRes] = await Promise.all([
+      fetch(`${BACKEND_URL}/api/v1/admin/bot-configs/`, { headers, cache: 'no-store' }).catch(() => null),
+      fetch(`${BACKEND_URL}/api/v1/admin/messages/stats/`, { headers, cache: 'no-store' }).catch(() => null),
+    ]);
+
+    let tenantCount = 0;
+    let messageCount = 0;
+
+    if (tenantsRes?.ok) {
+      const configs = await tenantsRes.json();
+      // Count unique tenant_ids from bot configs
+      const uniqueTenants = new Set((configs as { tenant_id?: string }[]).map((c) => c.tenant_id).filter(Boolean));
+      tenantCount = uniqueTenants.size;
+    }
+
+    if (statsRes?.ok) {
+      const stats = await statsRes.json();
+      messageCount = stats?.total_messages ?? 0;
+    }
+
+    return { tenantCount, messageCount };
+  } catch {
+    return { tenantCount: 0, messageCount: 0 };
+  }
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -43,7 +79,10 @@ export default async function BillingPage() {
   const dbUser = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!dbUser) redirect('/login');
 
-  const { user, subscription } = await getBillingData(dbUser.id);
+  const [{ user, subscription }, { tenantCount, messageCount }] = await Promise.all([
+    getBillingData(dbUser.id),
+    getUsageData(),
+  ]);
 
   const isTrialActive =
     subscription?.status === 'active' &&
@@ -115,7 +154,9 @@ export default async function BillingPage() {
               </span>
             </div>
             <a
-              href="/checkout"
+              href={subscription?.asaasPaymentLink || '/checkout'}
+              target={subscription?.asaasPaymentLink ? '_blank' : undefined}
+              rel={subscription?.asaasPaymentLink ? 'noopener noreferrer' : undefined}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition-all"
             >
               {subscription?.status === 'pending' ? 'Concluir pagamento' : 'Fazer upgrade'}
@@ -147,9 +188,12 @@ export default async function BillingPage() {
             <span className="text-gray-300 font-medium text-sm">Instâncias WhatsApp</span>
           </div>
           <p className="text-2xl font-bold text-white">
-            — / {user?.maxTenants ?? 1}
+            {tenantCount} / {user?.maxTenants ?? 1}
           </p>
           <p className="text-gray-500 text-xs mt-1">Tenants disponíveis no plano</p>
+          {tenantCount >= (user?.maxTenants ?? 1) && (
+            <p className="text-yellow-400 text-xs mt-2">Limite atingido</p>
+          )}
         </div>
 
         <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl p-5">
@@ -160,9 +204,12 @@ export default async function BillingPage() {
             <span className="text-gray-300 font-medium text-sm">Mensagens / mês</span>
           </div>
           <p className="text-2xl font-bold text-white">
-            — / {(user?.maxMessagesPerMonth ?? 500).toLocaleString('pt-BR')}
+            {messageCount.toLocaleString('pt-BR')} / {(user?.maxMessagesPerMonth ?? 500).toLocaleString('pt-BR')}
           </p>
           <p className="text-gray-500 text-xs mt-1">Limite mensal do plano</p>
+          {messageCount >= (user?.maxMessagesPerMonth ?? 500) && (
+            <p className="text-yellow-400 text-xs mt-2">Limite atingido</p>
+          )}
         </div>
       </div>
     </div>

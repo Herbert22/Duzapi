@@ -9,16 +9,33 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
-  title: 'WhatsApp Admin Panel',
-  description: 'Sistema de Automação e Chatbot com IA para WhatsApp',
+  title: {
+    default: 'DuzAPI — Automatize seu WhatsApp com IA',
+    template: '%s | DuzAPI',
+  },
+  description: 'Automatize seu atendimento no WhatsApp com inteligência artificial. Chatbot com GPT-4, multi-atendimento, dashboard de métricas e muito mais.',
+  keywords: ['whatsapp', 'chatbot', 'automação', 'inteligência artificial', 'GPT-4', 'atendimento automático', 'SaaS'],
+  authors: [{ name: 'DuzAPI' }],
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
   },
   openGraph: {
-    title: 'WhatsApp Admin Panel',
-    description: 'Sistema de Automação e Chatbot com IA para WhatsApp',
+    title: 'DuzAPI — Automatize seu WhatsApp com IA',
+    description: 'Chatbot inteligente com GPT-4 para WhatsApp. Aumente suas vendas com atendimento 24/7.',
+    siteName: 'DuzAPI',
+    locale: 'pt_BR',
+    type: 'website',
     images: ['/og-image.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DuzAPI — Automatize seu WhatsApp com IA',
+    description: 'Chatbot inteligente com GPT-4 para WhatsApp. Aumente suas vendas com atendimento 24/7.',
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

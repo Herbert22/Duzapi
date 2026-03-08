@@ -9,6 +9,7 @@ import {
   Bot,
   MessageSquare,
   Smartphone,
+  CreditCard,
   LogOut,
   Menu,
   X,
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Configurações Bot', href: '/bot-configs', icon: Bot },
   { name: 'WhatsApp', href: '/whatsapp', icon: Smartphone },
   { name: 'Logs de Conversa', href: '/messages', icon: MessageSquare },
+  { name: 'Cobrança', href: '/billing', icon: CreditCard },
 ];
 
 export function Sidebar() {

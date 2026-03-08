@@ -35,13 +35,57 @@ export async function POST(request: NextRequest) {
 
       const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
 
-      // TODO: replace with your email provider (e.g. SendGrid, Resend, SES)
-      // For now, log the URL in development so it can be tested
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[PASSWORD RESET] URL for ${normalizedEmail}: ${resetUrl}`);
-      } else {
-        // await sendEmail({ to: normalizedEmail, subject: 'Redefinição de senha — DuzAPI', resetUrl });
-        console.warn(`[PASSWORD RESET] Email sending not configured. Token for ${normalizedEmail}: ${token}`);
+      const htmlBody = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #7c3aed; margin: 0;">DuzAPI</h1>
+            <p style="color: #666; margin-top: 5px;">WhatsApp Automation</p>
+          </div>
+          <div style="background: #f9fafb; padding: 30px; border-radius: 12px; text-align: center;">
+            <h2 style="color: #333; margin-bottom: 10px;">Redefinição de senha</h2>
+            <p style="color: #666; margin-bottom: 20px;">Clique no botão abaixo para redefinir sua senha:</p>
+            <a href="${resetUrl}" style="background: #7c3aed; color: white; font-size: 16px; font-weight: bold; padding: 14px 32px; border-radius: 8px; text-decoration: none; display: inline-block;">
+              Redefinir Senha
+            </a>
+            <p style="color: #999; font-size: 14px; margin-top: 20px;">
+              Este link expira em 1 hora.
+            </p>
+            <p style="color: #ccc; font-size: 12px; margin-top: 10px; word-break: break-all;">
+              ${resetUrl}
+            </p>
+          </div>
+          <p style="color: #999; font-size: 12px; text-align: center; margin-top: 30px;">
+            Se você não solicitou esta redefinição, ignore este email.
+          </p>
+        </div>
+      `;
+
+      // Send email via Abacus AI (same provider as verification codes)
+      try {
+        const appUrl = process.env.NEXTAUTH_URL || '';
+        const emailResponse = await fetch('https://apps.abacus.ai/api/sendNotificationEmail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deployment_token: process.env.ABACUSAI_API_KEY,
+            app_id: process.env.WEB_APP_ID,
+            notification_id: process.env.NOTIF_ID_PASSWORD_RESET || process.env.NOTIF_ID_EMAIL_VERIFICATION_CODE,
+            subject: 'Redefinição de senha — DuzAPI',
+            body: htmlBody,
+            is_html: true,
+            recipient_email: normalizedEmail,
+            sender_email: appUrl ? `noreply@${new URL(appUrl).hostname}` : 'noreply@duzapi.com.br',
+            sender_alias: 'DuzAPI',
+          }),
+        });
+
+        const emailResult = await emailResponse.json();
+        if (!emailResult.success && !emailResult.notification_disabled) {
+          console.error('Password reset email error:', emailResult);
+        }
+      } catch (emailError) {
+        console.error('Password reset email send error:', emailError);
+        // Don't fail the request — still return success to avoid leaking info
       }
     }
 

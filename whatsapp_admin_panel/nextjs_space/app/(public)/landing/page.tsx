@@ -12,8 +12,8 @@ import {
   Users,
   Check,
   ArrowRight,
-  Star,
   Sparkles,
+  Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PLANS } from '@/lib/asaas';
@@ -51,27 +51,6 @@ export default function LandingPage() {
       icon: Users,
       title: 'Multi-Tenant',
       description: 'Gerencie múltiplos números de WhatsApp em uma única plataforma.',
-    },
-  ];
-
-  const testimonials = [
-    {
-      name: 'Carlos Silva',
-      role: 'CEO, TechStore',
-      content: 'Reduzimos o tempo de resposta em 90% e aumentamos as vendas em 40%.',
-      rating: 5,
-    },
-    {
-      name: 'Ana Santos',
-      role: 'Gerente, Clínica Estética',
-      content: 'O agendamento automático revolucionou nosso atendimento.',
-      rating: 5,
-    },
-    {
-      name: 'Pedro Oliveira',
-      role: 'Dono, Restaurante Sabor',
-      content: 'Pedidos pelo WhatsApp aumentaram 60% com o chatbot.',
-      rating: 5,
     },
   ];
 
@@ -182,7 +161,7 @@ export default function LandingPage() {
               Escolha seu plano
             </h2>
             <p className="text-gray-400 text-lg mb-8">
-              Comece hoje e transforme seu atendimento
+              Comece com 7 dias grátis e transforme seu atendimento
             </p>
             {/* Billing Toggle */}
             <div className="inline-flex items-center gap-4 p-1 rounded-full bg-gray-800">
@@ -253,7 +232,7 @@ export default function LandingPage() {
                   }`}
                   size="lg"
                 >
-                  Assinar Agora
+                  Comece Grátis por 7 Dias
                 </Button>
               </Link>
             </motion.div>
@@ -298,7 +277,7 @@ export default function LandingPage() {
                   }`}
                   size="lg"
                 >
-                  Assinar Agora
+                  Comece Grátis por 7 Dias
                 </Button>
               </Link>
             </motion.div>
@@ -306,34 +285,36 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* How it works */}
       <section className="py-20 px-4 bg-gray-800/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              O que nossos clientes dizem
+              Como funciona
             </h2>
+            <p className="text-gray-400 text-lg">
+              Em 3 passos simples
+            </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
+            {[
+              { step: '1', title: 'Crie sua conta', description: 'Cadastre-se e ganhe 7 dias grátis para testar todos os recursos.' },
+              { step: '2', title: 'Conecte seu WhatsApp', description: 'Escaneie o QR Code e conecte seu número em segundos.' },
+              { step: '3', title: 'Configure seu chatbot', description: 'Personalize as respostas da IA e comece a automatizar.' },
+            ].map((item, index) => (
               <motion.div
-                key={testimonial.name}
+                key={item.step}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="p-6 rounded-2xl bg-gray-800/50 border border-gray-700"
+                className="text-center"
               >
-                <div className="flex gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                  ))}
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center mx-auto mb-4 text-white text-2xl font-bold">
+                  {item.step}
                 </div>
-                <p className="text-gray-300 mb-4">"{testimonial.content}"</p>
-                <div>
-                  <p className="font-semibold text-white">{testimonial.name}</p>
-                  <p className="text-gray-400 text-sm">{testimonial.role}</p>
-                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">{item.title}</h3>
+                <p className="text-gray-400">{item.description}</p>
               </motion.div>
             ))}
           </div>
@@ -354,7 +335,7 @@ export default function LandingPage() {
               Pronto para revolucionar seu atendimento?
             </h2>
             <p className="text-violet-100 text-lg mb-8">
-              Junte-se a centenas de empresas que já automatizaram seu WhatsApp
+              Comece agora com 7 dias grátis. Sem compromisso.
             </p>
             <Link href="/register">
               <Button size="lg" className="bg-white text-violet-600 hover:bg-gray-100 text-lg px-8">
@@ -369,13 +350,53 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="py-12 px-4 border-t border-gray-800">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                <MessageSquare className="w-4 h-4 text-white" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            {/* Logo & description */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-lg font-bold text-white">DuzAPI</span>
               </div>
-              <span className="text-lg font-bold text-white">DuzAPI</span>
+              <p className="text-gray-400 text-sm">
+                Automatize seu WhatsApp com Inteligência Artificial.
+              </p>
             </div>
+
+            {/* Links */}
+            <div>
+              <h4 className="text-white font-semibold mb-4">Links</h4>
+              <ul className="space-y-2 text-sm">
+                <li><Link href="#pricing" className="text-gray-400 hover:text-violet-400">Preços</Link></li>
+                <li><Link href="/register" className="text-gray-400 hover:text-violet-400">Criar conta</Link></li>
+                <li><Link href="/login" className="text-gray-400 hover:text-violet-400">Entrar</Link></li>
+                <li><Link href="/termos" className="text-gray-400 hover:text-violet-400">Termos de Uso</Link></li>
+                <li><Link href="/privacidade" className="text-gray-400 hover:text-violet-400">Política de Privacidade</Link></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="text-white font-semibold mb-4">Contato</h4>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2 text-gray-400">
+                  <Mail className="w-4 h-4" />
+                  <a href="mailto:suporte@duzapi.com.br" className="hover:text-violet-400">
+                    suporte@duzapi.com.br
+                  </a>
+                </li>
+                <li className="flex items-center gap-2 text-gray-400">
+                  <MessageSquare className="w-4 h-4" />
+                  <a href="https://wa.me/5571997351964" target="_blank" rel="noopener noreferrer" className="hover:text-violet-400">
+                    WhatsApp Suporte
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-800 pt-8 text-center">
             <p className="text-gray-400 text-sm">
               © {new Date().getFullYear()} DuzAPI. Todos os direitos reservados.
             </p>

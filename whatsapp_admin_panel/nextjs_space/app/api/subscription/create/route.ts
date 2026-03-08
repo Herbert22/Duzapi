@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { PLANS, createCustomer, findCustomerByEmail, createPaymentLink } from '@/lib/asaas';
+import { PLANS, createCustomer, findCustomerByEmail, createPaymentLink, createSubscription } from '@/lib/asaas';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,17 +75,39 @@ export async function POST(request: NextRequest) {
     }
 
     // -----------------------------------------------------------------
-    // Create Asaas payment link
+    // Create Asaas subscription linked to customer
     // -----------------------------------------------------------------
-    const paymentLink = await createPaymentLink({
-      name: plan.name,
-      description: plan.description,
-      value: plan.price,
-      billingType: 'UNDEFINED',
-      chargeType: 'RECURRENT',
-      subscriptionCycle: plan.cycle,
-      dueDateLimitDays: 7,
-    });
+    const nextDueDate = new Date();
+    nextDueDate.setDate(nextDueDate.getDate() + (isTrialEligible ? TRIAL_DURATION_DAYS : 1));
+    const nextDueDateStr = nextDueDate.toISOString().split('T')[0];
+
+    let asaasSubscriptionId: string | undefined;
+    let paymentUrl: string | undefined;
+
+    try {
+      const asaasSub = await createSubscription({
+        customer: asaasCustomerId!,
+        billingType: 'UNDEFINED',
+        value: plan.price,
+        nextDueDate: nextDueDateStr,
+        cycle: plan.cycle,
+        description: plan.description,
+      });
+      asaasSubscriptionId = asaasSub.id;
+    } catch (subError) {
+      // Fallback: create payment link if subscription creation fails
+      console.warn('Asaas subscription creation failed, using payment link:', subError);
+      const paymentLink = await createPaymentLink({
+        name: plan.name,
+        description: plan.description,
+        value: plan.price,
+        billingType: 'UNDEFINED',
+        chargeType: 'RECURRENT',
+        subscriptionCycle: plan.cycle,
+        dueDateLimitDays: 7,
+      });
+      paymentUrl = paymentLink.url;
+    }
 
     // -----------------------------------------------------------------
     // Create subscription record — activate trial immediately if eligible
@@ -100,7 +122,8 @@ export async function POST(request: NextRequest) {
         plan: planId,
         status: isTrialEligible ? 'active' : 'pending',
         priceInCents: plan.priceInCents,
-        asaasPaymentLink: paymentLink.url,
+        asaasSubscriptionId,
+        asaasPaymentLink: paymentUrl,
         trialEndsAt,
         trialUsed: isTrialEligible,
         startDate: isTrialEligible ? new Date() : undefined,
@@ -109,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      paymentUrl: paymentLink.url,
+      paymentUrl: paymentUrl ?? null,
       trialActivated: isTrialEligible,
       trialEndsAt: trialEndsAt?.toISOString() ?? null,
     });

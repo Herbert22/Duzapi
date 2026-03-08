@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { checkRateLimit, RATE_LIMIT_CONFIGS, getClientIP } from '@/lib/rate-limit';
 import { logUnauthorizedAccess, logRateLimitExceeded } from '@/lib/audit-log';
 
@@ -39,7 +40,45 @@ function buildHeaders(path: string): Record<string, string> {
 }
 
 /**
- * Verifica autenticação e rate limiting
+ * Check if user has an active (non-expired) subscription
+ */
+async function hasActiveSubscription(userEmail: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { email: userEmail },
+    include: {
+      subscriptions: {
+        where: { status: 'active' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!user || user.subscriptions.length === 0) {
+    // Admin users bypass subscription check
+    if (user?.role === 'admin') return true;
+    return false;
+  }
+
+  const sub = user.subscriptions[0];
+
+  // Check if trial has expired
+  if (sub.trialEndsAt && !sub.asaasSubscriptionId) {
+    if (new Date(sub.trialEndsAt) < new Date()) {
+      // Trial expired — mark as expired
+      await prisma.subscription.update({
+        where: { id: sub.id },
+        data: { status: 'expired' },
+      });
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Verifica autenticação, subscription e rate limiting
  */
 async function checkAuth(request: NextRequest, path: string): Promise<NextResponse | null> {
   // Verifica sessão
@@ -52,16 +91,28 @@ async function checkAuth(request: NextRequest, path: string): Promise<NextRespon
     );
   }
 
+  // Verifica subscription ativa (skip for billing-related reads)
+  const email = session.user?.email;
+  if (email && !path.startsWith('billing')) {
+    const active = await hasActiveSubscription(email);
+    if (!active) {
+      return NextResponse.json(
+        { error: 'Assinatura inativa ou expirada. Acesse a página de cobrança.', subscriptionRequired: true },
+        { status: 403 }
+      );
+    }
+  }
+
   // Rate limiting por usuário
   const clientIP = getClientIP(request);
-  const rateLimitKey = `api:${session.user?.email || clientIP}`;
+  const rateLimitKey = `api:${email || clientIP}`;
   const rateLimitResult = checkRateLimit(rateLimitKey, RATE_LIMIT_CONFIGS.api);
-  
+
   if (!rateLimitResult.success) {
     await logRateLimitExceeded(request, rateLimitKey);
     return NextResponse.json(
       { error: 'Muitas requisições. Tente novamente em instantes.' },
-      { 
+      {
         status: 429,
         headers: {
           'Retry-After': String(rateLimitResult.retryAfter),
@@ -76,7 +127,7 @@ async function checkAuth(request: NextRequest, path: string): Promise<NextRespon
 
 export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
   const path = params?.path?.join('/') ?? '';
-  
+
   // Verifica autenticação
   const authError = await checkAuth(request, path);
   if (authError) return authError;
@@ -91,21 +142,8 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
     });
 
     if (!response.ok) {
-      // Return empty data for common endpoints when backend returns error
-      if (path.includes('stats')) {
-        return NextResponse.json({
-          total_messages: 0,
-          messages_today: 0,
-          messages_last_24h: 0,
-          audio_messages: 0,
-          text_messages: 0,
-        });
-      }
-      if (path.includes('sessions') || path.includes('tenants') || path.includes('configs') || path.includes('history')) {
-        return NextResponse.json([]);
-      }
       return NextResponse.json(
-        { error: 'Backend request failed', status: response.status },
+        { error: 'Erro ao buscar dados do backend', status: response.status },
         { status: response.status }
       );
     }
@@ -113,23 +151,16 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
     const data = await response.json();
     return NextResponse.json(data);
   } catch {
-    // Return empty data instead of error when backend is unavailable
-    if (path.includes('stats')) {
-      return NextResponse.json({
-        total_messages: 0,
-        messages_today: 0,
-        messages_last_24h: 0,
-        audio_messages: 0,
-        text_messages: 0,
-      });
-    }
-    return NextResponse.json([]);
+    return NextResponse.json(
+      { error: 'Serviço temporariamente indisponível. Tente novamente em instantes.' },
+      { status: 503 }
+    );
   }
 }
 
 export async function POST(request: NextRequest, { params }: { params: { path: string[] } }) {
   const path = params?.path?.join('/') ?? '';
-  
+
   // Verifica autenticação
   const authError = await checkAuth(request, path);
   if (authError) return authError;
@@ -152,13 +183,13 @@ export async function POST(request: NextRequest, { params }: { params: { path: s
     const data = await response.json().catch(() => ({}));
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json({ error: 'Backend unavailable' }, { status: 503 });
+    return NextResponse.json({ error: 'Serviço temporariamente indisponível.' }, { status: 503 });
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { path: string[] } }) {
   const path = params?.path?.join('/') ?? '';
-  
+
   // Verifica autenticação
   const authError = await checkAuth(request, path);
   if (authError) return authError;
@@ -181,13 +212,13 @@ export async function PUT(request: NextRequest, { params }: { params: { path: st
     const data = await response.json().catch(() => ({}));
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json({ error: 'Backend unavailable' }, { status: 503 });
+    return NextResponse.json({ error: 'Serviço temporariamente indisponível.' }, { status: 503 });
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { path: string[] } }) {
   const path = params?.path?.join('/') ?? '';
-  
+
   // Verifica autenticação
   const authError = await checkAuth(request, path);
   if (authError) return authError;
@@ -207,6 +238,6 @@ export async function DELETE(request: NextRequest, { params }: { params: { path:
 
     return NextResponse.json({ success: true });
   } catch {
-    return NextResponse.json({ error: 'Backend unavailable' }, { status: 503 });
+    return NextResponse.json({ error: 'Serviço temporariamente indisponível.' }, { status: 503 });
   }
 }

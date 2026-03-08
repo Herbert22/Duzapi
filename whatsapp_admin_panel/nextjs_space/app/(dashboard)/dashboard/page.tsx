@@ -79,11 +79,21 @@ export default function DashboardPage() {
   const fetchData = async () => {
     try {
       const [tenantsRes, configsRes, messagesStatsRes, messagesRes] = await Promise.all([
-        fetch('/api/proxy/tenants').catch(() => ({ ok: false })),
-        fetch('/api/proxy/bot-configs').catch(() => ({ ok: false })),
-        fetch('/api/proxy/messages/stats').catch(() => ({ ok: false })),
-        fetch('/api/proxy/messages/history?limit=5').catch(() => ({ ok: false })),
+        fetch('/api/proxy/tenants').catch(() => ({ ok: false, status: 0 })),
+        fetch('/api/proxy/bot-configs').catch(() => ({ ok: false, status: 0 })),
+        fetch('/api/proxy/messages/stats').catch(() => ({ ok: false, status: 0 })),
+        fetch('/api/proxy/messages/history?limit=5').catch(() => ({ ok: false, status: 0 })),
       ]);
+
+      // Check if subscription is required (403 from proxy)
+      const anyRes = tenantsRes as Response;
+      if (anyRes.status === 403) {
+        const data = await anyRes.json().catch(() => ({}));
+        if (data.subscriptionRequired) {
+          window.location.href = '/billing';
+          return;
+        }
+      }
 
       let tenants: any[] = [];
       let configs: any[] = [];
@@ -92,9 +102,11 @@ export default function DashboardPage() {
 
       if ((tenantsRes as Response).ok) {
         tenants = await (tenantsRes as Response).json();
+        if (!Array.isArray(tenants)) tenants = [];
       }
       if ((configsRes as Response).ok) {
         configs = await (configsRes as Response).json();
+        if (!Array.isArray(configs)) configs = [];
       }
       if ((messagesStatsRes as Response).ok) {
         messagesStats = await (messagesStatsRes as Response).json();

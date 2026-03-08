@@ -181,9 +181,9 @@ export const PLANS = {
     cycle: 'MONTHLY' as const,
     description: 'Acesso completo ao WhatsApp Automation',
     features: [
-      'Chatbot com IA avançada',
-      'Até 5 atendentes',
-      'Mensagens ilimitadas',
+      'Chatbot com IA avançada (GPT-4)',
+      'Até 5 instâncias WhatsApp',
+      'Até 10.000 mensagens/mês',
       'Suporte prioritário',
       'Dashboard de métricas',
     ],
@@ -198,9 +198,9 @@ export const PLANS = {
     features: [
       'Tudo do plano mensal',
       'Economia de R$ 194/ano',
+      'Até 10.000 mensagens/mês',
       'Suporte VIP',
       'Configuração assistida',
-      'API personalizada',
     ],
   },
 };
