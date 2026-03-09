@@ -302,6 +302,100 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
+// POST /api/:sessionId/send-image  (send image message, requires auth)
+// ---------------------------------------------------------------------------
+router.post(
+  '/:sessionId/send-image',
+  requireAuth,
+  sendMessageLimiter,
+  param('sessionId').isString().trim().notEmpty(),
+  body('phone').isString().trim().notEmpty(),
+  body('image_base64').isString().trim().notEmpty(),
+  handleValidationErrors,
+  async (req, res) => {
+    const { sessionId } = req.params;
+    const { phone, image_base64, mime_type, caption } = req.body;
+    try {
+      logger.info('Send image request', { sessionId, to: phone });
+      const result = await sessionManager.sendImageBase64(
+        sessionId,
+        phone,
+        image_base64,
+        mime_type || 'image/jpeg',
+        caption || '',
+      );
+      res.json({ success: true, ...result });
+    } catch (error) {
+      logger.error('Error sending image', { sessionId, to: phone, error: error.message });
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// POST /api/:sessionId/send-video  (send video message, requires auth)
+// ---------------------------------------------------------------------------
+router.post(
+  '/:sessionId/send-video',
+  requireAuth,
+  sendMessageLimiter,
+  param('sessionId').isString().trim().notEmpty(),
+  body('phone').isString().trim().notEmpty(),
+  body('video_base64').isString().trim().notEmpty(),
+  handleValidationErrors,
+  async (req, res) => {
+    const { sessionId } = req.params;
+    const { phone, video_base64, mime_type, caption } = req.body;
+    try {
+      logger.info('Send video request', { sessionId, to: phone });
+      const result = await sessionManager.sendVideoBase64(
+        sessionId,
+        phone,
+        video_base64,
+        mime_type || 'video/mp4',
+        caption || '',
+      );
+      res.json({ success: true, ...result });
+    } catch (error) {
+      logger.error('Error sending video', { sessionId, to: phone, error: error.message });
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// POST /api/:sessionId/send-document  (send document message, requires auth)
+// ---------------------------------------------------------------------------
+router.post(
+  '/:sessionId/send-document',
+  requireAuth,
+  sendMessageLimiter,
+  param('sessionId').isString().trim().notEmpty(),
+  body('phone').isString().trim().notEmpty(),
+  body('document_base64').isString().trim().notEmpty(),
+  handleValidationErrors,
+  async (req, res) => {
+    const { sessionId } = req.params;
+    const { phone, document_base64, mime_type, filename, caption } = req.body;
+    try {
+      logger.info('Send document request', { sessionId, to: phone });
+      const result = await sessionManager.sendDocumentBase64(
+        sessionId,
+        phone,
+        document_base64,
+        mime_type || 'application/pdf',
+        filename || 'document.pdf',
+        caption || '',
+      );
+      res.json({ success: true, ...result });
+    } catch (error) {
+      logger.error('Error sending document', { sessionId, to: phone, error: error.message });
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // GET /api/audio/:filename  (protected — requires auth)
 // Replaces unauthenticated express.static for audio files
 // ---------------------------------------------------------------------------

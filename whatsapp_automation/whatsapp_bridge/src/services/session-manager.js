@@ -407,6 +407,59 @@ class SessionManager {
     return { success: true, messageId: result.id, to: chatId, timestamp: new Date().toISOString() };
   }
 
+  async sendImageBase64(sessionId, to, base64Image, mimeType = 'image/jpeg', caption = '') {
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.isConnected) {
+      throw new Error(`Session ${sessionId} is not connected`);
+    }
+
+    const chatId = to.includes('@') ? to : `${to}@c.us`;
+    const ext = mimeType.split('/')[1] || 'jpg';
+    const result = await session.client.sendImageFromBase64(
+      chatId,
+      `data:${mimeType};base64,${base64Image}`,
+      `image.${ext}`,
+      caption,
+    );
+    logger.info('Image sent', { sessionId, to: chatId, messageId: result.id });
+    return { success: true, messageId: result.id, to: chatId, timestamp: new Date().toISOString() };
+  }
+
+  async sendVideoBase64(sessionId, to, base64Video, mimeType = 'video/mp4', caption = '') {
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.isConnected) {
+      throw new Error(`Session ${sessionId} is not connected`);
+    }
+
+    const chatId = to.includes('@') ? to : `${to}@c.us`;
+    const ext = mimeType.split('/')[1] || 'mp4';
+    const result = await session.client.sendFileFromBase64(
+      chatId,
+      `data:${mimeType};base64,${base64Video}`,
+      `video.${ext}`,
+      caption,
+    );
+    logger.info('Video sent', { sessionId, to: chatId, messageId: result.id });
+    return { success: true, messageId: result.id, to: chatId, timestamp: new Date().toISOString() };
+  }
+
+  async sendDocumentBase64(sessionId, to, base64Doc, mimeType = 'application/pdf', filename = 'document.pdf', caption = '') {
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.isConnected) {
+      throw new Error(`Session ${sessionId} is not connected`);
+    }
+
+    const chatId = to.includes('@') ? to : `${to}@c.us`;
+    const result = await session.client.sendFileFromBase64(
+      chatId,
+      `data:${mimeType};base64,${base64Doc}`,
+      filename,
+      caption,
+    );
+    logger.info('Document sent', { sessionId, to: chatId, messageId: result.id });
+    return { success: true, messageId: result.id, to: chatId, timestamp: new Date().toISOString() };
+  }
+
   getQRCode(sessionId) {
     return this.qrCodes.get(sessionId);
   }

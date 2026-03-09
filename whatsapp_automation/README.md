@@ -1,458 +1,359 @@
-# 🤖 WhatsApp Automation - Sistema de Chatbot com IA
+# DuzAPI - Plataforma SaaS de Automacao WhatsApp com IA
 
-Sistema completo de automação e chatbot com IA para WhatsApp, construído com arquitetura hexagonal, multi-tenant e integração com OpenAI GPT-4.
+Sistema completo de automacao e chatbot com IA para WhatsApp, com arquitetura multi-tenant, funis visuais de mensagens e integracoes com IA.
 
-## 📋 Índice
+## Indice
 
-- [Características](#-características)
-- [Arquitetura](#-arquitetura)
-- [Tech Stack](#-tech-stack)
-- [Instalação](#-instalação)
-  - [Com Docker (Recomendado)](#com-docker-recomendado)
-  - [Instalação Local](#instalação-local)
-- [Configuração](#-configuração)
-- [Uso](#-uso)
-- [API Documentation](#-api-documentation)
-- [Interface Admin](#-interface-admin)
-- [Exemplos de Uso](#-exemplos-de-uso)
-- [Desenvolvimento](#-desenvolvimento)
+- [Caracteristicas](#caracteristicas)
+- [Arquitetura](#arquitetura)
+- [Tech Stack](#tech-stack)
+- [Instalacao](#instalacao)
+- [Configuracao](#configuracao)
+- [Uso](#uso)
+  - [Fluxo Basico](#fluxo-basico)
+  - [Funis de Mensagens](#funis-de-mensagens)
+  - [Configuracao de Bot (IA Fallback)](#configuracao-de-bot-ia-fallback)
+- [API Documentation](#api-documentation)
+- [Deploy em Producao](#deploy-em-producao)
 
-## ✨ Características
+## Caracteristicas
 
-- **Multi-tenant**: Suporte a múltiplos clientes/empresas
-- **Chatbot com IA**: Integração com OpenAI GPT-4 para respostas inteligentes
-- **Transcrição de Áudio**: Converte áudios em texto usando Whisper
-- **Humanização**: Delays configuráveis para simular digitação humana
-- **Triggers Flexíveis**: Responde a todas mensagens ou apenas palavras-chave
-- **Personas Customizáveis**: System prompts configuráveis por tenant
-- **Interface Admin**: Dashboard web para gerenciamento
-- **Logs Completos**: Histórico de conversas no MongoDB
-- **Processamento Assíncrono**: Celery para tarefas em background
+- **Multi-tenant**: Suporte a multiplos clientes/empresas isolados
+- **Funis Visuais**: Editor drag-and-drop para fluxos de conversa automatizados (similar ManyChat/Typebot)
+- **Chatbot com IA**: Integracao com Google Gemini e OpenAI GPT para respostas inteligentes
+- **Transcricao de Audio**: Converte audios em texto usando Whisper
+- **Humanizacao**: Delays configuraveis para simular digitacao humana
+- **Triggers Flexiveis**: Funis ativados por palavras-chave, IA responde ao restante
+- **Personas Customizaveis**: System prompts configuraveis por tenant
+- **Admin Panel Next.js**: Dashboard moderno com autenticacao, subscricoes e gerenciamento completo
+- **Logs Completos**: Historico de conversas no MongoDB
+- **Processamento Assincrono**: Celery para tarefas em background
+- **SaaS Ready**: Sistema de assinaturas com Asaas, rate limiting, audit logs
 
-## 🏗 Arquitetura
+## Arquitetura
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        PRESENTATION LAYER                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │  REST API   │  │  Webhooks   │  │     Admin Interface     │  │
-│  │  (FastAPI)  │  │ (WhatsApp)  │  │       (Jinja2)          │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                       APPLICATION LAYER                          │
-│  ┌──────────────────────┐  ┌──────────────────────────────────┐ │
-│  │  Message Processor   │  │         Use Cases                │ │
-│  │  (AI + Transcription)│  │  (Tenant, Config, Message CRUD)  │ │
-│  └──────────────────────┘  └──────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                         DOMAIN LAYER                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Tenant    │  │  BotConfig  │  │      MessageLog         │  │
-│  │  (Entity)   │  │  (Entity)   │  │       (Entity)          │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                     INFRASTRUCTURE LAYER                         │
-│  ┌───────────┐  ┌───────────┐  ┌────────────┐  ┌─────────────┐  │
-│  │PostgreSQL │  │  MongoDB  │  │   Redis    │  │   OpenAI    │  │
-│  │(Tenants)  │  │  (Logs)   │  │  (Celery)  │  │  (GPT-4)    │  │
-│  └───────────┘  └───────────┘  └────────────┘  └─────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+                        +-------------------+
+                        |   Admin Panel     |
+                        |   (Next.js 14)    |
+                        |   :3001           |
+                        +--------+----------+
+                                 |
+                        +--------v----------+
+                        |      Nginx        |
+                        |  (Reverse Proxy)  |
+                        |   :80 / :443      |
+                        +--------+----------+
+                                 |
+              +------------------+------------------+
+              |                                     |
+    +---------v---------+              +------------v-----------+
+    |   FastAPI Backend |              |   WhatsApp Bridge      |
+    |   :8000           |              |   (WPPConnect/Node.js) |
+    |   - REST API      |              |   :3000                |
+    |   - Admin routes  |              +------------+-----------+
+    |   - Webhooks      |                           |
+    +---------+---------+              Envia/Recebe mensagens
+              |                        via WhatsApp Web
+    +---------v---------+
+    |   Celery Workers  |
+    |   - Funnel engine |
+    |   - AI processing |
+    |   - Audio transc. |
+    +---+-------+-------+
+        |       |
+   +----v--+ +--v-----+ +--------+
+   |Postgre| |MongoDB | | Redis  |
+   |SQL    | |(logs)  | |(broker)|
+   +-------+ +--------+ +--------+
 ```
 
-## 🛠 Tech Stack
+### Roteamento de Mensagens (Webhook)
+
+Quando uma mensagem chega, o sistema segue esta prioridade:
+
+1. **Sessao de funil ativa** -> Retoma o funil existente para o contato
+2. **Trigger de funil** -> Se o texto bate com keywords de um funil ativo, inicia o funil
+3. **Bot Config (IA fallback)** -> Se nenhum funil se aplica, usa resposta IA configurada
+
+## Tech Stack
 
 | Componente | Tecnologia |
 |------------|------------|
-| **Backend** | FastAPI 0.109+ |
+| **Backend** | FastAPI (Python 3.11+) |
 | **ORM** | SQLAlchemy 2.0 (async) |
 | **BD Relacional** | PostgreSQL 15 |
-| **BD Documentos** | MongoDB 6 |
+| **BD Documentos** | MongoDB 6 (logs + sessoes de funil) |
 | **Cache/Broker** | Redis 7 |
-| **Task Queue** | Celery |
-| **IA** | OpenAI GPT-4 + Whisper |
-| **Templates** | Jinja2 + Bootstrap 5 |
+| **Task Queue** | Celery (sync workers) |
+| **IA** | Google Gemini (gemini-2.5-flash-lite) + OpenAI Whisper |
+| **Admin Panel** | Next.js 14 + Tailwind + shadcn/ui |
+| **Flow Editor** | @xyflow/react v12 (React Flow) |
 | **WhatsApp** | WPPConnect (Node.js) |
+| **Pagamentos** | Asaas (gateway BR) |
 | **Containers** | Docker + Docker Compose |
 
-## 📦 Instalação
+## Instalacao
 
 ### Com Docker (Recomendado)
 
-1. **Clone o repositório**
 ```bash
-git clone <repository-url>
-cd whatsapp_automation
-```
+# 1. Clone o repositorio
+git clone https://github.com/Herbert22/Duzapi.git
+cd Duzapi/whatsapp_automation
 
-2. **Configure as variáveis de ambiente**
-```bash
+# 2. Configure variaveis de ambiente
 cp .env.example .env
-# Edite o arquivo .env com suas configurações
+nano .env  # Preencha as credenciais
+
+# 3. Suba os containers
+docker compose up -d --build
+
+# 4. Verifique o status
+docker compose ps
 ```
 
-3. **Inicie os containers**
-```bash
-# Modo desenvolvimento
-docker-compose up -d
+### Portas dos servicos
 
-# Verificar status
-docker-compose ps
+| Servico | Porta | URL |
+|---------|-------|-----|
+| Admin Panel (Next.js) | 3001 | http://localhost:3001 |
+| Backend (FastAPI) | 8000 | http://localhost:8000 |
+| WhatsApp Bridge | 3000 | http://localhost:3000 |
+| Swagger Docs | 8000 | http://localhost:8000/docs |
 
-# Ver logs
-docker-compose logs -f backend
+## Configuracao
+
+### Variaveis de Ambiente Essenciais
+
+| Variavel | Descricao |
+|----------|-----------|
+| `SECRET_KEY` | Chave secreta para JWT/seguranca |
+| `ENCRYPTION_KEY` | Chave Fernet para encriptar API keys |
+| `BRIDGE_AUTH_TOKEN` | Token compartilhado entre backend e bridge |
+| `DATABASE_URL` | URL PostgreSQL (async: postgresql+asyncpg://...) |
+| `MONGODB_URL` | URL MongoDB |
+| `MONGODB_DB` | Nome do database MongoDB |
+| `REDIS_URL` | URL do Redis |
+| `GOOGLE_API_KEY` | Chave da API Gemini (para IA) |
+| `NEXTAUTH_URL` | URL publica do admin panel |
+| `NEXTAUTH_SECRET` | Segredo do NextAuth.js |
+| `ASAAS_API_KEY` | Chave Asaas (pagamentos, opcional) |
+
+## Uso
+
+### Fluxo Basico
+
+1. **Acesse o Admin Panel** -> http://localhost:3001 (ou seu dominio)
+2. **Crie uma conta** na tela de login
+3. **Crie um Tenant** (menu Inquilinos) — representa sua empresa/numero
+4. **Conecte o WhatsApp** (menu WhatsApp) — escaneie o QR Code
+5. **Configure respostas** via Funil ou Bot Config (veja abaixo)
+
+### Funis de Mensagens
+
+Os funis sao fluxos visuais de conversa automatizados. E a forma principal de criar automacoes.
+
+#### Criando um Funil
+
+1. Acesse **Funis de Mensagens** no menu lateral
+2. Clique **Novo Funil** — preencha nome, selecione o tenant e adicione palavras-chave de gatilho
+3. Voce sera redirecionado ao **Editor Visual**
+
+#### Editor Visual (React Flow)
+
+O editor tem uma barra lateral com os tipos de blocos disponiveis. Arraste para a area de trabalho e conecte:
+
+| Tipo de Bloco | Descricao | Configuracao |
+|---------------|-----------|--------------|
+| **Inicio** | Ponto de entrada do funil (obrigatorio, 1 por funil) | Nenhuma |
+| **Enviar Texto** | Envia mensagem de texto | `text`: mensagem (suporta variaveis `{nome}`) |
+| **Enviar Imagem** | Envia imagem com legenda opcional | `url`: URL da imagem, `caption`: legenda |
+| **Enviar Audio** | Envia arquivo de audio | `url`: URL do audio |
+| **Enviar Video** | Envia video com legenda | `url`: URL do video, `caption`: legenda |
+| **Enviar Documento** | Envia documento/arquivo | `url`: URL do documento, `filename`: nome |
+| **Aguardar** | Pausa antes do proximo bloco | `seconds`: tempo em segundos |
+| **Perguntar** | Envia pergunta e aguarda resposta | `question`: texto, `variable`: nome da variavel, `timeout_seconds`: timeout |
+| **Condicao** | Bifurca o fluxo com base em variavel | `variable`: variavel, arestas com `condition_label`/`condition_value` |
+| **Tag** | Aplica tag ao contato | `tag`: nome da tag |
+| **Resposta IA** | Gera resposta com IA (Gemini/GPT) | `prompt`: instrucao para a IA |
+
+#### Exemplo de Funil
+
+```
+[Inicio] -> [Enviar Texto: "Ola! Qual procedimento voce procura?"]
+         -> [Perguntar: variavel="procedimento"]
+         -> [Condicao: variavel="procedimento"]
+              |-- "bariatrica" -> [Enviar Texto: "Otimo! A cirurgia bariatrica..."]
+              |-- "rinoplastia" -> [Enviar Texto: "A rinoplastia e um..."]
+              |-- (padrao) -> [Resposta IA: "Responda sobre o procedimento"]
+         -> [Tag: "lead_qualificado"]
 ```
 
-4. **Acesse a aplicação**
-- API: http://localhost:8000
-- Admin: http://localhost:8000/admin
-- Docs: http://localhost:8000/docs
+#### Variaveis
 
-5. **Comandos úteis**
-```bash
-# Parar todos os serviços
-docker-compose down
+Nos blocos de texto voce pode usar `{nome_da_variavel}` que sera substituido pelo valor coletado:
+- Variaveis criadas por blocos **Perguntar** (o `variable` definido)
+- Variaveis de sistema: `{sender_phone}` (telefone do contato)
 
-# Reconstruir imagens
-docker-compose build --no-cache
+#### Ativando o Funil
 
-# Ver logs de um serviço específico
-docker-compose logs -f celery_worker
+1. Adicione pelo menos uma **palavra-chave de gatilho** (ex: "bariatrica", "preco", "orcamento")
+2. Certifique-se de ter um bloco **Inicio** conectado
+3. Clique no botao **Ativar** (icone play) na lista de funis ou salve com "Ativo" marcado
+4. Quando um contato enviar uma mensagem contendo a keyword, o funil sera iniciado automaticamente
 
-# Executar migrations
-docker-compose exec backend alembic upgrade head
+#### Prioridade
 
-# Acessar shell do container
-docker-compose exec backend bash
-```
+Se multiplos funis correspondem a mesma mensagem, o de maior `priority` (numero) ganha. O padrao e 0.
 
-### Instalação Local
+### Configuracao de Bot (IA Fallback)
 
-1. **Pré-requisitos**
-- Python 3.11+
-- PostgreSQL 15+
-- MongoDB 6+
-- Redis 7+
+O Bot Config e o "cerebro padrao" — responde quando nenhum funil se aplica.
 
-2. **Clone e configure**
-```bash
-git clone <repository-url>
-cd whatsapp_automation
+1. Acesse **Configuracoes de Bot** no menu lateral
+2. Crie uma configuracao para seu tenant:
+   - **Nome da Persona**: nome do assistente (ex: "Clara")
+   - **System Prompt**: instrucao de comportamento da IA
+   - **Provedor de IA**: Gemini ou OpenAI + API key
+   - **Modo de Gatilho**: `all` (responde tudo) ou `keywords` (so palavras-chave)
+   - **Delay**: tempo minimo/maximo de espera antes de responder (humanizacao)
+   - **Resposta por Audio**: ativa TTS (text-to-speech)
+   - **Mensagem Inicial**: mensagem enviada no primeiro contato
+3. Ative a configuracao
 
-# Criar ambiente virtual
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou: venv\Scripts\activate  # Windows
+#### Coexistencia Funis + Bot Config
 
-# Instalar dependências
-pip install -r requirements.txt
-```
+- Funis tem **prioridade** — se uma mensagem bate com trigger de funil, o funil executa
+- Se nenhum funil se aplica, a mensagem vai para o **Bot Config** (IA)
+- Um funil pode conter blocos de **Resposta IA** que usam a IA dentro do fluxo
+- Enquanto um contato esta em um funil ativo, todas as mensagens dele vao para o funil (ate concluir)
 
-3. **Configure as variáveis de ambiente**
-```bash
-cp .env.example .env
-# Edite o .env com as configurações locais
-```
+## API Documentation
 
-4. **Inicialize os bancos de dados**
-```bash
-# PostgreSQL - criar database
-createdb whatsapp_automation
-
-# Executar migrations (se usar Alembic)
-alembic upgrade head
-```
-
-5. **Inicie a aplicação**
-```bash
-# Terminal 1 - API
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# Terminal 2 - Celery Worker
-celery -A app.infrastructure.tasks.celery_app worker --loglevel=info
-
-# Terminal 3 - Celery Beat (opcional, para tarefas agendadas)
-celery -A app.infrastructure.tasks.celery_app beat --loglevel=info
-```
-
-## ⚙️ Configuração
-
-### Variáveis de Ambiente
-
-| Variável | Descrição | Padrão |
-|----------|-----------|--------|
-| `DEBUG` | Modo debug | `false` |
-| `SECRET_KEY` | Chave secreta para JWT | - |
-| `DATABASE_URL` | URL do PostgreSQL (async) | - |
-| `MONGODB_URL` | URL do MongoDB | - |
-| `MONGODB_DATABASE` | Nome do database MongoDB | `whatsapp_automation` |
-| `REDIS_URL` | URL do Redis | `redis://localhost:6379/0` |
-| `OPENAI_API_KEY` | Chave da API OpenAI | - |
-| `WPPCONNECT_SERVER_URL` | URL do servidor WPPConnect | - |
-
-### Exemplo de .env
-```env
-DEBUG=true
-SECRET_KEY=sua-chave-secreta-aqui
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/whatsapp_automation
-SYNC_DATABASE_URL=postgresql://user:pass@localhost:5432/whatsapp_automation
-MONGODB_URL=mongodb://user:pass@localhost:27017
-MONGODB_DATABASE=whatsapp_automation
-REDIS_URL=redis://localhost:6379/0
-OPENAI_API_KEY=sk-...
-WPPCONNECT_SERVER_URL=http://localhost:21465
-```
-
-## 📱 WhatsApp Bridge
-
-O serviço WhatsApp Bridge (Node.js + WPPConnect) é responsável pela comunicação com o WhatsApp.
-
-### Iniciar uma Sessão WhatsApp
-
-```bash
-# Iniciar sessão para um tenant
-curl -X POST "http://localhost:3000/api/sessions/minha-empresa/start" \
-  -H "Content-Type: application/json" \
-  -d '{"tenant_id": "uuid-do-tenant"}'
-
-# Resposta contém o QR Code em base64
-{
-  "success": true,
-  "status": "qr_code",
-  "sessionId": "minha-empresa",
-  "qrCode": "data:image/png;base64,..."
-}
-```
-
-### Verificar Status da Sessão
-
-```bash
-curl http://localhost:3000/api/sessions/minha-empresa/status
-```
-
-### Endpoints do WhatsApp Bridge
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `GET` | `/api/sessions` | Lista todas as sessões |
-| `POST` | `/api/sessions/:id/start` | Inicia uma sessão |
-| `POST` | `/api/sessions/:id/stop` | Para uma sessão |
-| `GET` | `/api/sessions/:id/status` | Status da sessão |
-| `GET` | `/api/sessions/:id/qrcode` | Obtém QR Code |
-| `POST` | `/api/send-message` | Envia mensagem |
-| `GET` | `/api/health` | Health check |
-
-Para mais detalhes, consulte o [README do WhatsApp Bridge](./whatsapp_bridge/README.md).
-
-## 🚀 Uso
-
-### Fluxo Básico
-
-1. **Criar um Tenant** (via API ou Admin)
-2. **Guardar a API Key** gerada
-3. **Criar uma Configuração de Bot** para o tenant
-4. **Iniciar sessão WhatsApp** no Bridge
-5. **Escanear QR Code** com o celular
-6. **Testar** enviando mensagens
-
-## 📚 API Documentation
-
-A documentação interativa está disponível em:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+Documentacao interativa: http://localhost:8000/docs
 
 ### Endpoints Principais
 
-#### Tenants
-| Método | Endpoint | Descrição |
+#### Funnels (Admin)
+| Metodo | Endpoint | Descricao |
 |--------|----------|-----------|
-| `POST` | `/api/v1/tenants` | Criar tenant |
-| `GET` | `/api/v1/tenants` | Listar tenants |
-| `GET` | `/api/v1/tenants/{id}` | Obter tenant |
+| `GET` | `/api/v1/admin/funnels/` | Listar funis |
+| `POST` | `/api/v1/admin/funnels/` | Criar funil |
+| `GET` | `/api/v1/admin/funnels/{id}` | Obter funil com grafo |
+| `PUT` | `/api/v1/admin/funnels/{id}` | Atualizar metadados |
+| `PUT` | `/api/v1/admin/funnels/{id}/graph` | Salvar grafo completo (nos + arestas) |
+| `DELETE` | `/api/v1/admin/funnels/{id}` | Excluir funil |
+
+#### Tenants
+| Metodo | Endpoint | Descricao |
+|--------|----------|-----------|
+| `POST` | `/api/v1/tenants/` | Criar tenant |
+| `GET` | `/api/v1/tenants/` | Listar tenants |
 | `PUT` | `/api/v1/tenants/{id}` | Atualizar tenant |
 | `DELETE` | `/api/v1/tenants/{id}` | Excluir tenant |
-| `POST` | `/api/v1/tenants/{id}/regenerate-key` | Regenerar API Key |
 
-#### Bot Configs
-| Método | Endpoint | Descrição |
+#### Bot Configs (Admin)
+| Metodo | Endpoint | Descricao |
 |--------|----------|-----------|
-| `POST` | `/api/v1/bot-configs` | Criar config |
-| `GET` | `/api/v1/bot-configs` | Listar configs |
-| `GET` | `/api/v1/bot-configs/{id}` | Obter config |
-| `PUT` | `/api/v1/bot-configs/{id}` | Atualizar config |
-| `DELETE` | `/api/v1/bot-configs/{id}` | Excluir config |
-| `POST` | `/api/v1/bot-configs/{id}/activate` | Ativar config |
+| `POST` | `/api/v1/admin/bot-configs/` | Criar config |
+| `GET` | `/api/v1/admin/bot-configs/` | Listar configs |
+| `PUT` | `/api/v1/admin/bot-configs/{id}` | Atualizar config |
+| `DELETE` | `/api/v1/admin/bot-configs/{id}` | Excluir config |
 
-#### Messages
-| Método | Endpoint | Descrição |
+#### Messages (Admin)
+| Metodo | Endpoint | Descricao |
 |--------|----------|-----------|
-| `GET` | `/api/v1/messages` | Listar mensagens |
-| `GET` | `/api/v1/messages/conversation/{phone}` | Histórico conversa |
-| `GET` | `/api/v1/messages/stats` | Estatísticas |
+| `GET` | `/api/v1/admin/messages/` | Listar mensagens |
+| `GET` | `/api/v1/admin/messages/conversations` | Listar conversas |
 
 #### Webhooks
-| Método | Endpoint | Descrição |
+| Metodo | Endpoint | Descricao |
 |--------|----------|-----------|
-| `POST` | `/api/v1/webhooks/whatsapp` | Receber mensagens WPPConnect |
+| `POST` | `/api/v1/webhooks/whatsapp` | Receber mensagens do bridge |
 
-### Autenticação
+### Autenticacao
 
-As rotas protegidas requerem o header `X-API-Key`:
+- **Admin routes** (`/api/v1/admin/*`): Bearer token (`BRIDGE_AUTH_TOKEN`)
+- **Tenant routes** (`/api/v1/tenants/*`): Bearer token (`BRIDGE_AUTH_TOKEN`)
+- **Public routes** (`/api/v1/webhooks/*`): HMAC signature (`X-Bridge-Signature`)
 
-```bash
-curl -X GET "http://localhost:8000/api/v1/bot-configs" \
-  -H "X-API-Key: sua-api-key-aqui"
-```
+## Deploy em Producao
 
-## 🖥 Interface Admin
+Consulte [DEPLOY_VPS.md](../DEPLOY_VPS.md) para o guia completo de deploy.
 
-Acesse http://localhost:8000/admin para:
-
-- **Dashboard**: Visão geral com estatísticas
-- **Tenants**: Gerenciar clientes/empresas
-- **Configurações**: Definir personas e triggers
-- **Logs**: Visualizar histórico de conversas
-
-## 📝 Exemplos de Uso
-
-### Criar Tenant via API
+### Comandos uteis
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/tenants" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Minha Empresa",
-    "phone_number": "5511999999999"
-  }'
+# Atualizar codigo na VPS
+cd /opt/duzapi && git pull origin main
+cd whatsapp_automation && docker compose up -d --build
+
+# Ver logs
+docker compose logs -f backend
+docker compose logs -f celery_worker
+
+# Backup PostgreSQL
+docker exec wa_postgres pg_dump -U whatsapp whatsapp_automation | gzip > backup_pg_$(date +%Y%m%d).sql.gz
+
+# Backup MongoDB
+docker exec wa_mongodb mongodump --username whatsapp --password "$MONGO_PASSWORD" --authenticationDatabase admin --archive --gzip > backup_mongo_$(date +%Y%m%d).gz
 ```
 
-**Resposta:**
-```json
-{
-  "id": "uuid-do-tenant",
-  "name": "Minha Empresa",
-  "phone_number": "5511999999999",
-  "is_active": true,
-  "api_key": "wa_abc123..."  // GUARDAR ESTA CHAVE!
-}
-```
-
-### Criar Configuração de Bot
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/bot-configs" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: wa_abc123..." \
-  -d '{
-    "tenant_id": "uuid-do-tenant",
-    "persona_name": "Assistente Vendas",
-    "system_prompt": "Você é um assistente de vendas amigável da empresa X. Responda de forma clara e objetiva.",
-    "trigger_mode": "all",
-    "delay_min": 2,
-    "delay_max": 5,
-    "is_active": true
-  }'
-```
-
-### Configurar Webhook WPPConnect
-
-Configure o WPPConnect para enviar webhooks para:
-```
-POST http://seu-servidor:8000/api/v1/webhooks/whatsapp
-```
-
-### Consultar Histórico de Conversa
-
-```bash
-curl -X GET "http://localhost:8000/api/v1/messages/conversation/5511888888888?limit=20" \
-  -H "X-API-Key: wa_abc123..."
-```
-
-## 🔧 Desenvolvimento
-
-### Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
 whatsapp_automation/
-├── app/
-│   ├── admin/                 # Interface administrativa
-│   │   ├── routes.py          # Rotas do admin
-│   │   └── templates/         # Templates Jinja2
-│   ├── api/                   # Camada de apresentação
-│   │   ├── routes/            # Endpoints da API
-│   │   ├── schemas/           # Schemas Pydantic
-│   │   └── dependencies/      # Dependências (auth, etc)
-│   ├── application/           # Camada de aplicação
-│   │   └── services/          # Serviços e casos de uso
-│   ├── core/                  # Configurações core
-│   │   ├── config.py          # Settings
-│   │   ├── database.py        # Conexões BD
-│   │   └── security.py        # Autenticação
-│   ├── domain/                # Camada de domínio
-│   │   └── entities/          # Entidades/Models
-│   └── infrastructure/        # Camada de infraestrutura
-│       ├── external_services/ # Integrações externas
-│       ├── repositories/      # Repositórios
-│       └── tasks/             # Tasks Celery
-├── whatsapp_bridge/           # Serviço WhatsApp (Node.js)
-│   ├── src/
-│   │   ├── index.js           # Entry point
-│   │   ├── config/            # Configurações
-│   │   ├── services/          # Session manager, Message handler
-│   │   ├── routes/            # API REST
-│   │   └── utils/             # Logger
-│   ├── Dockerfile             # Imagem Docker Node.js
-│   └── package.json           # Dependências Node.js
-├── main.py                    # Ponto de entrada
-├── requirements.txt           # Dependências Python
-├── Dockerfile                 # Imagem Docker Backend
-├── docker-compose.yml         # Orquestração
-└── .env.example               # Exemplo de configuração
+  app/
+    api/
+      routes/
+        admin_funnels.py    # CRUD funis (admin)
+        admin_bot_config.py # CRUD bot configs (admin)
+        admin_messages.py   # Mensagens (admin)
+        webhooks.py         # Webhook WhatsApp
+        tenants.py          # CRUD tenants
+      schemas/
+        funnel.py           # Schemas Pydantic (funis)
+    application/
+      services/             # Servicos de dominio
+    core/
+      config.py             # Settings
+      database.py           # Conexoes BD (PostgreSQL + MongoDB)
+      redis_client.py       # Redis client
+      security.py           # Autenticacao
+    domain/
+      entities/
+        funnel.py           # Funnel, FunnelNode, FunnelEdge, ContactTag
+        tenant.py           # Tenant
+        bot_config.py       # BotConfig
+        message_log.py      # MessageLog
+    infrastructure/
+      repositories/
+        funnel_repository.py    # Repositorio funis (PostgreSQL)
+      tasks/
+        funnel_tasks.py     # Engine de execucao de funis (Celery)
+        message_tasks.py    # Processamento IA (Celery)
+  whatsapp_bridge/          # Servico WhatsApp (Node.js + WPPConnect)
+  main.py                   # Entry point FastAPI
+  docker-compose.yml        # Orquestracao
+  Dockerfile                # Imagem backend
+
+whatsapp_admin_panel/
+  nextjs_space/
+    app/
+      (dashboard)/
+        funnels/
+          page.tsx          # Lista de funis
+          [id]/page.tsx     # Editor visual (React Flow)
+        bot-config/         # Config de bot (IA)
+        messages/           # Historico de mensagens
+        whatsapp/           # Gerenciamento de sessoes
+      api/
+        proxy/[...path]/    # Proxy para backend
+        auth/               # NextAuth.js
+        subscription/       # Assinaturas Asaas
 ```
-
-### Rodar Testes
-
-```bash
-# Instalar dependências de teste
-pip install pytest pytest-asyncio pytest-cov
-
-# Rodar testes
-pytest
-
-# Com cobertura
-pytest --cov=app --cov-report=html
-```
-
-### Migrations com Alembic
-
-```bash
-# Criar nova migration
-alembic revision --autogenerate -m "descrição da mudança"
-
-# Aplicar migrations
-alembic upgrade head
-
-# Reverter última migration
-alembic downgrade -1
-```
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 🤝 Contribuição
-
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
 
 ---
 
-Desenvolvido com ❤️ usando FastAPI + OpenAI
+Desenvolvido por Herbert | DuzAPI - duzapi.com.br

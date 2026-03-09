@@ -21,6 +21,7 @@ class Tenant(Base):
     
     # Relationships
     bot_configs = relationship("BotConfig", back_populates="tenant", cascade="all, delete-orphan")
+    funnels = relationship("Funnel", back_populates="tenant", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Tenant(id={self.id}, name='{self.name}', phone='{self.phone_number}')>"

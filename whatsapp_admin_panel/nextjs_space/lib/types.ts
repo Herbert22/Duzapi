@@ -99,6 +99,57 @@ export interface SessionStatus {
   connected: boolean;
 }
 
+// Funnel types
+export type NodeType =
+  | 'start'
+  | 'send_text'
+  | 'send_image'
+  | 'send_audio'
+  | 'send_video'
+  | 'send_document'
+  | 'wait'
+  | 'ask'
+  | 'condition'
+  | 'tag'
+  | 'ai_response';
+
+export interface FunnelNode {
+  id: string;
+  funnel_id: string;
+  type: NodeType;
+  data: Record<string, unknown>;
+  position_x: number;
+  position_y: number;
+  created_at: string;
+}
+
+export interface FunnelEdge {
+  id: string;
+  funnel_id: string;
+  source_node_id: string;
+  target_node_id: string;
+  condition_label?: string;
+  condition_value?: string;
+  sort_order: number;
+}
+
+export interface Funnel {
+  id: string;
+  tenant_id: string;
+  name: string;
+  trigger_keywords: string[];
+  is_active: boolean;
+  priority: number;
+  node_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FunnelDetail extends Funnel {
+  nodes: FunnelNode[];
+  edges: FunnelEdge[];
+}
+
 // API Response types
 export interface ApiResponse<T> {
   data?: T;

@@ -1,6 +1,11 @@
+import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional, List
 from functools import lru_cache
+
+# Project root directory (whatsapp_automation/)
+_BASE_DIR = str(Path(__file__).resolve().parent.parent.parent)
 
 
 class Settings(BaseSettings):
@@ -82,6 +87,9 @@ class Settings(BaseSettings):
 
     # Message log TTL in days (MongoDB TTL index)
     MESSAGE_LOG_TTL_DAYS: int = 90
+
+    # Base directory for file storage
+    BASE_DIR: str = _BASE_DIR
 
     class Config:
         env_file = ".env"

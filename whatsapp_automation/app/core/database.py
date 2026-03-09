@@ -118,6 +118,22 @@ async def _ensure_mongodb_indexes(db) -> None:
     )
     logger.info("MongoDB indexes verified", extra={"collection": "message_logs"})
 
+    # Funnel session state indexes
+    fs_col = db["funnel_sessions"]
+    await fs_col.create_index(
+        [("tenant_id", ASCENDING), ("session_id", ASCENDING)],
+        name="tenant_session_funnel",
+        unique=True,
+        background=True,
+    )
+    await fs_col.create_index(
+        [("wait_until", ASCENDING)],
+        name="wait_until",
+        sparse=True,
+        background=True,
+    )
+    logger.info("MongoDB indexes verified", extra={"collection": "funnel_sessions"})
+
 
 async def close_mongodb():
     """Close MongoDB connection."""

@@ -1,0 +1,737 @@
+'use client';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  Panel,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+  Connection,
+  Node,
+  Edge,
+  MarkerType,
+  ReactFlowProvider,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Modal } from '@/components/ui/modal';
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  Play,
+  Pause,
+  Type,
+  Image,
+  Music,
+  Video,
+  FileText,
+  Clock,
+  HelpCircle,
+  GitBranch,
+  Tag,
+  Bot,
+  X,
+  Zap,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import type { FunnelDetail, NodeType } from '@/lib/types';
+import { FunnelNodeComponent } from './funnel-node';
+
+// Node type definition for React Flow
+const nodeTypes = {
+  funnelNode: FunnelNodeComponent,
+};
+
+const NODE_PALETTE: { type: NodeType; label: string; icon: typeof Type; color: string }[] = [
+  { type: 'send_text', label: 'Texto', icon: Type, color: '#8b5cf6' },
+  { type: 'send_image', label: 'Imagem', icon: Image, color: '#3b82f6' },
+  { type: 'send_audio', label: 'Áudio', icon: Music, color: '#10b981' },
+  { type: 'send_video', label: 'Vídeo', icon: Video, color: '#f59e0b' },
+  { type: 'send_document', label: 'Documento', icon: FileText, color: '#ef4444' },
+  { type: 'wait', label: 'Esperar', icon: Clock, color: '#6366f1' },
+  { type: 'ask', label: 'Perguntar', icon: HelpCircle, color: '#ec4899' },
+  { type: 'condition', label: 'Caminhos', icon: GitBranch, color: '#f97316' },
+  { type: 'tag', label: 'Tag', icon: Tag, color: '#14b8a6' },
+  { type: 'ai_response', label: 'IA', icon: Bot, color: '#a855f7' },
+];
+
+function FunnelEditor() {
+  const params = useParams();
+  const router = useRouter();
+  const funnelId = params.id as string;
+
+  const [funnel, setFunnel] = useState<FunnelDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [funnelName, setFunnelName] = useState('');
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [isActive, setIsActive] = useState(false);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [showPropertiesModal, setShowPropertiesModal] = useState(false);
+  const [nodeFormData, setNodeFormData] = useState<Record<string, unknown>>({});
+
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+
+  // Load funnel data
+  useEffect(() => {
+    const fetchFunnel = async () => {
+      try {
+        const res = await fetch(`/api/proxy/funnels/${funnelId}`);
+        if (!res.ok) {
+          toast.error('Funil não encontrado');
+          router.push('/funnels');
+          return;
+        }
+        const data: FunnelDetail = await res.json();
+        setFunnel(data);
+        setFunnelName(data.name);
+        setKeywords(data.trigger_keywords);
+        setIsActive(data.is_active);
+
+        // Convert backend nodes to React Flow nodes
+        const rfNodes: Node[] = data.nodes.map((n) => ({
+          id: n.id,
+          type: 'funnelNode',
+          position: { x: n.position_x, y: n.position_y },
+          data: { ...n.data, nodeType: n.type, label: getNodeLabel(n.type) },
+        }));
+
+        // If no nodes, create a start node
+        if (rfNodes.length === 0) {
+          rfNodes.push({
+            id: crypto.randomUUID(),
+            type: 'funnelNode',
+            position: { x: 250, y: 50 },
+            data: { nodeType: 'start', label: 'Início' },
+          });
+        }
+
+        // Convert backend edges to React Flow edges
+        const rfEdges: Edge[] = data.edges.map((e) => ({
+          id: e.id,
+          source: e.source_node_id,
+          target: e.target_node_id,
+          label: e.condition_label || undefined,
+          data: { condition_value: e.condition_value, sort_order: e.sort_order },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+          style: { stroke: '#6366f1', strokeWidth: 2 },
+          animated: true,
+        }));
+
+        setNodes(rfNodes);
+        setEdges(rfEdges);
+      } catch {
+        toast.error('Erro ao carregar funil');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFunnel();
+  }, [funnelId]);
+
+  const getNodeLabel = (type: string): string => {
+    const found = NODE_PALETTE.find(n => n.type === type);
+    return found?.label || type;
+  };
+
+  // Handle new connection
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...connection,
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+            style: { stroke: '#6366f1', strokeWidth: 2 },
+            animated: true,
+          },
+          eds
+        )
+      );
+    },
+    [setEdges]
+  );
+
+  // Add node from palette
+  const addNode = (type: NodeType) => {
+    const newNode: Node = {
+      id: crypto.randomUUID(),
+      type: 'funnelNode',
+      position: { x: 250 + Math.random() * 200, y: 150 + nodes.length * 100 },
+      data: { nodeType: type, label: getNodeLabel(type), ...getDefaultData(type) },
+    };
+    setNodes((nds) => [...nds, newNode]);
+  };
+
+  const getDefaultData = (type: NodeType): Record<string, unknown> => {
+    switch (type) {
+      case 'send_text': return { text: '' };
+      case 'send_image': return { media_url: '', caption: '' };
+      case 'send_video': return { media_url: '', caption: '' };
+      case 'send_document': return { media_url: '', caption: '', filename: '' };
+      case 'send_audio': return { audio_url: '', use_tts: false, tts_text: '' };
+      case 'wait': return { delay_seconds: 5 };
+      case 'ask': return { question: '', variable: '', timeout_seconds: 300 };
+      case 'condition': return { variable: '', conditions: [] };
+      case 'tag': return { tag_name: '', action: 'add' };
+      case 'ai_response': return { system_prompt: '' };
+      default: return {};
+    }
+  };
+
+  // Node click → open properties
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setSelectedNode(node);
+    setNodeFormData({ ...node.data });
+    setShowPropertiesModal(true);
+  }, []);
+
+  // Save node properties
+  const saveNodeProperties = () => {
+    if (!selectedNode) return;
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === selectedNode.id
+          ? { ...n, data: { ...nodeFormData } }
+          : n
+      )
+    );
+    setShowPropertiesModal(false);
+    setSelectedNode(null);
+  };
+
+  // Delete selected node
+  const deleteNode = (nodeId: string) => {
+    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+    setShowPropertiesModal(false);
+    setSelectedNode(null);
+  };
+
+  // Save funnel to backend
+  const handleSave = async () => {
+    // Validations
+    if (!funnelName.trim()) {
+      toast.error('O funil precisa de um nome');
+      return;
+    }
+    const hasStartNode = nodes.some((n) => n.data.nodeType === 'start');
+    if (!hasStartNode) {
+      toast.error('O funil precisa de um nó de Início');
+      return;
+    }
+    if (isActive && keywords.length === 0) {
+      toast.error('Funil ativo precisa de pelo menos uma palavra-chave de gatilho');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        name: funnelName,
+        trigger_keywords: keywords,
+        is_active: isActive,
+        nodes: nodes.map((n) => ({
+          id: n.id,
+          type: n.data.nodeType as NodeType,
+          data: Object.fromEntries(
+            Object.entries(n.data).filter(([k]) => k !== 'nodeType' && k !== 'label')
+          ),
+          position_x: n.position.x,
+          position_y: n.position.y,
+        })),
+        edges: edges.map((e) => ({
+          id: e.id,
+          source_node_id: e.source,
+          target_node_id: e.target,
+          condition_label: (e.label as string) || null,
+          condition_value: (e.data as Record<string, unknown>)?.condition_value as string || null,
+          sort_order: (e.data as Record<string, unknown>)?.sort_order as number || 0,
+        })),
+      };
+
+      const res = await fetch(`/api/proxy/funnels/${funnelId}/graph`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const saved: FunnelDetail = await res.json();
+        toast.success('Funil salvo com sucesso!');
+
+        // Update nodes/edges with server-generated IDs
+        const rfNodes: Node[] = saved.nodes.map((n) => ({
+          id: n.id,
+          type: 'funnelNode',
+          position: { x: n.position_x, y: n.position_y },
+          data: { ...n.data, nodeType: n.type, label: getNodeLabel(n.type) },
+        }));
+        const rfEdges: Edge[] = saved.edges.map((e) => ({
+          id: e.id,
+          source: e.source_node_id,
+          target: e.target_node_id,
+          label: e.condition_label || undefined,
+          data: { condition_value: e.condition_value, sort_order: e.sort_order },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+          style: { stroke: '#6366f1', strokeWidth: 2 },
+          animated: true,
+        }));
+        setNodes(rfNodes);
+        setEdges(rfEdges);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Erro ao salvar funil');
+      }
+    } catch {
+      toast.error('Erro ao salvar funil');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addKeyword = () => {
+    const kw = keywordInput.trim();
+    if (kw && !keywords.includes(kw)) {
+      setKeywords([...keywords, kw]);
+      setKeywordInput('');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[80vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-violet-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-[calc(100vh-2rem)] flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 rounded-t-xl">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => router.push('/funnels')}>
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Voltar
+          </Button>
+          <Input
+            value={funnelName}
+            onChange={(e) => setFunnelName(e.target.value)}
+            className="bg-slate-900 border-slate-700 text-white font-semibold w-64"
+            placeholder="Nome do funil"
+          />
+          <Badge
+            variant={isActive ? 'success' : 'secondary'}
+            className="cursor-pointer"
+            onClick={() => setIsActive(!isActive)}
+          >
+            {isActive ? <Play className="w-3 h-3 mr-1" /> : <Pause className="w-3 h-3 mr-1" />}
+            {isActive ? 'Ativo' : 'Inativo'}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Keywords */}
+          <div className="flex items-center gap-1">
+            <Zap className="w-4 h-4 text-amber-400" />
+            {keywords.slice(0, 3).map((kw) => (
+              <Badge key={kw} variant="secondary" className="text-xs gap-1">
+                {kw}
+                <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setKeywords(keywords.filter(k => k !== kw))} />
+              </Badge>
+            ))}
+            <Input
+              placeholder="+ gatilho"
+              value={keywordInput}
+              onChange={(e) => setKeywordInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
+              className="bg-slate-900 border-slate-700 text-white w-24 h-7 text-xs"
+            />
+          </div>
+          <Button onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700">
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar
+          </Button>
+        </div>
+      </div>
+
+      {/* Editor area */}
+      <div className="flex-1 flex">
+        {/* Toolbar (left) */}
+        <div className="w-16 bg-slate-800 border-r border-slate-700 py-3 flex flex-col items-center gap-2 overflow-y-auto">
+          {NODE_PALETTE.map(({ type, label, icon: Icon, color }) => (
+            <button
+              key={type}
+              onClick={() => addNode(type)}
+              className="w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 hover:bg-slate-700 transition-colors group"
+              title={label}
+            >
+              <Icon className="w-5 h-5" style={{ color }} />
+              <span className="text-[9px] text-slate-500 group-hover:text-slate-300">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Canvas */}
+        <div ref={reactFlowWrapper} className="flex-1">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            nodeTypes={nodeTypes}
+            fitView
+            className="bg-slate-900"
+            defaultEdgeOptions={{
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+              style: { stroke: '#6366f1', strokeWidth: 2 },
+              animated: true,
+            }}
+          >
+            <Background color="#334155" gap={20} />
+            <Controls className="!bg-slate-800 !border-slate-700 !shadow-lg [&>button]:!bg-slate-700 [&>button]:!border-slate-600 [&>button]:!text-white [&>button:hover]:!bg-slate-600" />
+            <MiniMap
+              className="!bg-slate-800 !border-slate-700"
+              nodeColor="#6366f1"
+              maskColor="rgba(0,0,0,0.7)"
+            />
+          </ReactFlow>
+        </div>
+      </div>
+
+      {/* Node Properties Modal */}
+      <Modal
+        open={showPropertiesModal}
+        onOpenChange={setShowPropertiesModal}
+        title={`Propriedades: ${(nodeFormData as Record<string, string>).label || ''}`}
+      >
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          <NodePropertiesForm
+            nodeType={(nodeFormData as Record<string, string>).nodeType || 'send_text'}
+            data={nodeFormData}
+            onChange={setNodeFormData}
+          />
+          <div className="flex justify-between pt-2 border-t border-slate-700">
+            {selectedNode?.data?.nodeType !== 'start' && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => selectedNode && deleteNode(selectedNode.id)}
+              >
+                Excluir Bloco
+              </Button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" onClick={() => setShowPropertiesModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={saveNodeProperties} className="bg-violet-600 hover:bg-violet-700">
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// Properties form for each node type
+function NodePropertiesForm({
+  nodeType,
+  data,
+  onChange,
+}: {
+  nodeType: string;
+  data: Record<string, unknown>;
+  onChange: (d: Record<string, unknown>) => void;
+}) {
+  const update = (key: string, value: unknown) => onChange({ ...data, [key]: value });
+
+  switch (nodeType) {
+    case 'start':
+      return <p className="text-slate-400">O nó de início é o ponto de entrada do funil. Conecte-o ao próximo bloco.</p>;
+
+    case 'send_text':
+      return (
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Mensagem</label>
+          <Textarea
+            value={(data.text as string) || ''}
+            onChange={(e) => update('text', e.target.value)}
+            placeholder="Digite a mensagem... Use {variavel} para inserir variáveis."
+            className="bg-slate-800 border-slate-700 text-white min-h-[100px]"
+          />
+        </div>
+      );
+
+    case 'send_image':
+    case 'send_video':
+    case 'send_document':
+      return (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">URL da Mídia</label>
+            <Input
+              value={(data.media_url as string) || ''}
+              onChange={(e) => update('media_url', e.target.value)}
+              placeholder="/uploads/arquivo.jpg ou https://..."
+              className="bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Legenda (opcional)</label>
+            <Input
+              value={(data.caption as string) || ''}
+              onChange={(e) => update('caption', e.target.value)}
+              className="bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
+          {nodeType === 'send_document' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Nome do arquivo</label>
+              <Input
+                value={(data.filename as string) || ''}
+                onChange={(e) => update('filename', e.target.value)}
+                placeholder="documento.pdf"
+                className="bg-slate-800 border-slate-700 text-white"
+              />
+            </div>
+          )}
+        </>
+      );
+
+    case 'send_audio':
+      return (
+        <>
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              type="checkbox"
+              checked={(data.use_tts as boolean) || false}
+              onChange={(e) => update('use_tts', e.target.checked)}
+              className="rounded"
+            />
+            <label className="text-sm text-slate-300">Usar Text-to-Speech (TTS)</label>
+          </div>
+          {data.use_tts ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Texto para áudio</label>
+              <Textarea
+                value={(data.tts_text as string) || ''}
+                onChange={(e) => update('tts_text', e.target.value)}
+                placeholder="O texto que será convertido em áudio..."
+                className="bg-slate-800 border-slate-700 text-white min-h-[80px]"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">URL do Áudio</label>
+              <Input
+                value={(data.audio_url as string) || ''}
+                onChange={(e) => update('audio_url', e.target.value)}
+                placeholder="/uploads/audio.ogg"
+                className="bg-slate-800 border-slate-700 text-white"
+              />
+            </div>
+          )}
+        </>
+      );
+
+    case 'wait':
+      return (
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Tempo de espera (segundos)</label>
+          <Input
+            type="number"
+            value={(data.delay_seconds as number) || 5}
+            onChange={(e) => update('delay_seconds', parseInt(e.target.value) || 5)}
+            min={1}
+            max={86400}
+            className="bg-slate-800 border-slate-700 text-white"
+          />
+        </div>
+      );
+
+    case 'ask':
+      return (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Pergunta</label>
+            <Textarea
+              value={(data.question as string) || ''}
+              onChange={(e) => update('question', e.target.value)}
+              placeholder="Qual é o seu nome?"
+              className="bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Salvar resposta na variável
+            </label>
+            <Input
+              value={(data.variable as string) || ''}
+              onChange={(e) => update('variable', e.target.value)}
+              placeholder="client_name"
+              className="bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Timeout (segundos)
+            </label>
+            <Input
+              type="number"
+              value={(data.timeout_seconds as number) || 300}
+              onChange={(e) => update('timeout_seconds', parseInt(e.target.value) || 300)}
+              className="bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
+        </>
+      );
+
+    case 'condition':
+      return (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Variável a avaliar</label>
+            <Input
+              value={(data.variable as string) || ''}
+              onChange={(e) => update('variable', e.target.value)}
+              placeholder="client_answer"
+              className="bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Condições</label>
+            <p className="text-xs text-slate-500 mb-2">
+              Defina as condições e conecte cada saída a um nó diferente no canvas.
+              Use o rótulo da aresta para identificar cada caminho.
+            </p>
+            {((data.conditions as Array<Record<string, string>>) || []).map((cond, i) => (
+              <div key={i} className="flex gap-2 mb-2">
+                <select
+                  value={cond.operator || 'contains'}
+                  onChange={(e) => {
+                    const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
+                    conditions[i] = { ...conditions[i], operator: e.target.value };
+                    update('conditions', conditions);
+                  }}
+                  className="rounded bg-slate-800 border border-slate-700 text-white text-sm px-2"
+                >
+                  <option value="contains">Contém</option>
+                  <option value="equals">Igual a</option>
+                  <option value="starts_with">Começa com</option>
+                </select>
+                <Input
+                  value={cond.value || ''}
+                  onChange={(e) => {
+                    const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
+                    conditions[i] = { ...conditions[i], value: e.target.value };
+                    update('conditions', conditions);
+                  }}
+                  placeholder="valor"
+                  className="bg-slate-800 border-slate-700 text-white text-sm flex-1"
+                />
+                <Input
+                  value={cond.edge_label || ''}
+                  onChange={(e) => {
+                    const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
+                    conditions[i] = { ...conditions[i], edge_label: e.target.value };
+                    update('conditions', conditions);
+                  }}
+                  placeholder="rótulo"
+                  className="bg-slate-800 border-slate-700 text-white text-sm w-24"
+                />
+                <button
+                  onClick={() => {
+                    const conditions = ((data.conditions as Array<Record<string, string>>) || []).filter((_, j) => j !== i);
+                    update('conditions', conditions);
+                  }}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
+                conditions.push({ operator: 'contains', value: '', edge_label: '' });
+                update('conditions', conditions);
+              }}
+            >
+              + Condição
+            </Button>
+          </div>
+        </>
+      );
+
+    case 'tag':
+      return (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Nome da Tag</label>
+            <Input
+              value={(data.tag_name as string) || ''}
+              onChange={(e) => update('tag_name', e.target.value)}
+              placeholder="lead_quente"
+              className="bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Ação</label>
+            <select
+              value={(data.action as string) || 'add'}
+              onChange={(e) => update('action', e.target.value)}
+              className="w-full rounded-md bg-slate-800 border border-slate-700 text-white px-3 py-2"
+            >
+              <option value="add">Adicionar</option>
+              <option value="remove">Remover</option>
+            </select>
+          </div>
+        </>
+      );
+
+    case 'ai_response':
+      return (
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">System Prompt da IA</label>
+          <Textarea
+            value={(data.system_prompt as string) || ''}
+            onChange={(e) => update('system_prompt', e.target.value)}
+            placeholder="Você é um assistente especializado em..."
+            className="bg-slate-800 border-slate-700 text-white min-h-[120px]"
+          />
+        </div>
+      );
+
+    default:
+      return <p className="text-slate-400">Tipo de nó desconhecido</p>;
+  }
+}
+
+export default function FunnelEditorPage() {
+  return (
+    <ReactFlowProvider>
+      <FunnelEditor />
+    </ReactFlowProvider>
+  );
+}

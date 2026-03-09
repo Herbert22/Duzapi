@@ -10,6 +10,7 @@ from app.core.security import verify_webhook_signature
 from app.core.redis_client import is_duplicate
 from app.infrastructure.repositories.tenant_repository import TenantRepository
 from app.infrastructure.repositories.bot_config_repository import BotConfigRepository
+from app.infrastructure.repositories.funnel_repository import FunnelRepository
 from app.infrastructure.repositories.message_log_repository import MessageLogRepository
 from app.domain.entities.message_log import MessageLog, MessageType
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,24 +110,15 @@ async def receive_whatsapp_message(
     if not tenant.is_active:
         return WebhookResponse(status="ignored", message="Tenant está inativo")
 
-    # Get active bot config
-    config_repo = BotConfigRepository(db)
-    bot_config = await config_repo.get_active_by_tenant_id(tenant.id)
-    if not bot_config:
-        logger.warning("No active bot config", extra={"tenant_id": str(tenant.id)})
-        return WebhookResponse(status="ignored", message="Nenhuma configuração de bot ativa")
-
     # Determine message type and content
     message_type = map_bridge_type_to_message_type(payload.message_type)
     content = payload.content or payload.audio_url or ""
 
-    # Build session ID for conversation tracking
-    session_id = f"{tenant.id}_{payload.sender_phone}"
+    # Normalize phone for consistent session_id (matches bridge format)
+    normalized_phone = payload.sender_phone.replace("+", "").replace("-", "").replace(" ", "")
 
-    # Check trigger mode (skip if not matching)
-    if message_type == MessageType.TEXT and not bot_config.should_respond(content):
-        logger.info("Message filtered by trigger mode", extra={"trigger_mode": str(bot_config.trigger_mode)})
-        return WebhookResponse(status="filtered", message="Mensagem não correspondeu aos critérios de gatilho")
+    # Build session ID for conversation tracking
+    session_id = f"{tenant.id}_{normalized_phone}"
 
     # Persist the incoming message log
     mongodb = get_mongodb()
@@ -142,8 +134,67 @@ async def receive_whatsapp_message(
     )
     await message_repo.create(message_log)
 
-    # Dispatch to Celery (reliable, retryable)
+    # ------------------------------------------------------------------
+    # Routing: Funnel (priority) → Bot Config (fallback)
+    # ------------------------------------------------------------------
     try:
+        # 1. Check if there is an active funnel session (resume) — async via Motor
+        existing_funnel_session = await mongodb["funnel_sessions"].find_one({
+            "tenant_id": str(tenant.id),
+            "session_id": session_id,
+        })
+
+        if existing_funnel_session:
+            # Resume existing funnel
+            from app.infrastructure.tasks.funnel_tasks import execute_funnel_task
+            execute_funnel_task.delay(
+                tenant_id=str(tenant.id),
+                session_id=session_id,
+                sender_phone=payload.sender_phone,
+                funnel_id=existing_funnel_session["funnel_id"],
+                bridge_session_id=payload.session_id,
+                user_input=content,
+                is_new=False,
+            )
+            logger.info("Funnel resumed", extra={"session_id": session_id, "funnel_id": existing_funnel_session["funnel_id"]})
+            return WebhookResponse(status="accepted", message="Funil retomado", processing=True)
+
+        # 2. Check if message matches any active funnel trigger
+        if message_type == MessageType.TEXT and content:
+            funnel_repo = FunnelRepository(db)
+            active_funnels = await funnel_repo.get_active_by_tenant_id(tenant.id)
+            matched_funnel = None
+            for funnel in active_funnels:
+                if funnel.matches_trigger(content):
+                    matched_funnel = funnel
+                    break
+
+            if matched_funnel:
+                from app.infrastructure.tasks.funnel_tasks import execute_funnel_task
+                execute_funnel_task.delay(
+                    tenant_id=str(tenant.id),
+                    session_id=session_id,
+                    sender_phone=payload.sender_phone,
+                    funnel_id=str(matched_funnel.id),
+                    bridge_session_id=payload.session_id,
+                    user_input=content,
+                    is_new=True,
+                )
+                logger.info("Funnel triggered", extra={"session_id": session_id, "funnel_id": str(matched_funnel.id)})
+                return WebhookResponse(status="accepted", message="Funil ativado", processing=True)
+
+        # 3. Fallback to bot config (AI response)
+        config_repo = BotConfigRepository(db)
+        bot_config = await config_repo.get_active_by_tenant_id(tenant.id)
+        if not bot_config:
+            logger.warning("No active bot config or funnel", extra={"tenant_id": str(tenant.id)})
+            return WebhookResponse(status="ignored", message="Nenhuma configuração de bot ou funil ativo")
+
+        # Check trigger mode
+        if message_type == MessageType.TEXT and not bot_config.should_respond(content):
+            logger.info("Message filtered by trigger mode", extra={"trigger_mode": str(bot_config.trigger_mode)})
+            return WebhookResponse(status="filtered", message="Mensagem não correspondeu aos critérios de gatilho")
+
         from app.infrastructure.tasks.message_tasks import process_and_respond_task
         process_and_respond_task.delay(
             tenant_id=str(tenant.id),
@@ -154,7 +205,8 @@ async def receive_whatsapp_message(
             bot_config_id=str(bot_config.id),
             bridge_session_id=payload.session_id,
         )
-        logger.info("Message queued for Celery", extra={"session_id": session_id})
+        logger.info("Message queued for AI processing", extra={"session_id": session_id})
+
     except Exception as exc:
         logger.error("Failed to queue Celery task", extra={"error": str(exc)})
         raise HTTPException(

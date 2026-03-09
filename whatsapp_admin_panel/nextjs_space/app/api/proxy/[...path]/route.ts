@@ -12,7 +12,10 @@ const WHATSAPP_URL = process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3000';
 const BRIDGE_AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN || '';
 
 /** Paths that use the admin API (no tenant API key required) */
-const ADMIN_PATHS = ['bot-configs', 'messages'];
+const ADMIN_PATHS = ['bot-configs', 'messages', 'funnels', 'uploads'];
+
+/** Paths that need Bearer token but are NOT under /admin/ prefix */
+const AUTH_PATHS = ['tenants'];
 
 /** Ensure backend paths end with / to avoid FastAPI 307 redirects that lose POST body */
 function backendUrl(path: string, searchParams?: string): string {
@@ -28,12 +31,14 @@ function backendUrl(path: string, searchParams?: string): string {
   return searchParams ? `${withSlash}?${searchParams}` : withSlash;
 }
 
-/** Build headers — adds Bearer token for bridge and admin requests */
+/** Build headers — adds Bearer token for bridge, admin, and auth-required requests */
 function buildHeaders(path: string): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (path.startsWith('whatsapp/') && BRIDGE_AUTH_TOKEN) {
-    headers['Authorization'] = `Bearer ${BRIDGE_AUTH_TOKEN}`;
-  } else if (ADMIN_PATHS.some((p) => path === p || path.startsWith(`${p}/`)) && BRIDGE_AUTH_TOKEN) {
+  const needsToken =
+    path.startsWith('whatsapp/') ||
+    ADMIN_PATHS.some((p) => path === p || path.startsWith(`${p}/`)) ||
+    AUTH_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+  if (needsToken && BRIDGE_AUTH_TOKEN) {
     headers['Authorization'] = `Bearer ${BRIDGE_AUTH_TOKEN}`;
   }
   return headers;
