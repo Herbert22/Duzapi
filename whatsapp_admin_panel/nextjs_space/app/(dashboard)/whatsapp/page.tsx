@@ -318,13 +318,13 @@ export default function WhatsAppPage() {
                     {/* Tenant mapping */}
                     {!session?.tenantId && (
                       <div className="mb-4">
-                        <label className="text-xs text-slate-400 block mb-1">Vincular a Tenant</label>
+                        <label className="text-xs text-slate-400 block mb-1">Vincular a Inquilino</label>
                         <select
                           className="w-full h-9 px-3 rounded-lg border border-slate-600 bg-slate-800/50 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                           onChange={(e) => e.target.value && mapTenantToSession(session?.sessionId, e.target.value)}
                           defaultValue=""
                         >
-                          <option value="">Selecione um tenant</option>
+                          <option value="">Selecione um inquilino</option>
                           {tenants?.map((t) => (
                             <option key={t?.id} value={t?.id}>{t?.name}</option>
                           ))}
@@ -404,13 +404,13 @@ export default function WhatsAppPage() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Vincular a Tenant (opcional)</label>
+            <label className="text-sm font-medium text-slate-300">Vincular a Inquilino (opcional)</label>
             <select
               value={selectedTenantId}
               onChange={(e) => setSelectedTenantId(e.target.value)}
               className="w-full h-10 px-4 rounded-xl border border-slate-600 bg-slate-800/50 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
             >
-              <option value="">Selecione um tenant</option>
+              <option value="">Selecione um inquilino</option>
               {tenants?.map((t) => (
                 <option key={t?.id} value={t?.id}>{t?.name}</option>
               ))}

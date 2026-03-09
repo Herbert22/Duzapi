@@ -190,7 +190,7 @@ export default async function BillingPage() {
           <p className="text-2xl font-bold text-white">
             {tenantCount} / {user?.maxTenants ?? 1}
           </p>
-          <p className="text-gray-500 text-xs mt-1">Tenants disponíveis no plano</p>
+          <p className="text-gray-500 text-xs mt-1">Inquilinos disponíveis no plano</p>
           {tenantCount >= (user?.maxTenants ?? 1) && (
             <p className="text-yellow-400 text-xs mt-2">Limite atingido</p>
           )}

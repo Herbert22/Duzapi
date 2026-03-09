@@ -65,7 +65,7 @@ async def _verify_bridge_signature(request: Request) -> None:
         logger.warning("Invalid webhook signature rejected")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook signature",
+            detail="Assinatura de webhook inválida",
         )
 
 
@@ -96,7 +96,7 @@ async def receive_whatsapp_message(
         dedup_key = f"dedup:{payload.message_id}"
         if is_duplicate(dedup_key, ttl_seconds=300):
             logger.info("Duplicate message ignored", extra={"message_id": payload.message_id})
-            return WebhookResponse(status="duplicate", message="Message already processed")
+            return WebhookResponse(status="duplicate", message="Mensagem já processada")
 
     # Find tenant by ID
     tenant_repo = TenantRepository(db)
@@ -104,17 +104,17 @@ async def receive_whatsapp_message(
 
     if not tenant:
         logger.warning("Tenant not found", extra={"tenant_id": payload.tenant_id})
-        return WebhookResponse(status="error", message="Tenant not found")
+        return WebhookResponse(status="error", message="Tenant não encontrado")
 
     if not tenant.is_active:
-        return WebhookResponse(status="ignored", message="Tenant is inactive")
+        return WebhookResponse(status="ignored", message="Tenant está inativo")
 
     # Get active bot config
     config_repo = BotConfigRepository(db)
     bot_config = await config_repo.get_active_by_tenant_id(tenant.id)
     if not bot_config:
         logger.warning("No active bot config", extra={"tenant_id": str(tenant.id)})
-        return WebhookResponse(status="ignored", message="No active bot configuration")
+        return WebhookResponse(status="ignored", message="Nenhuma configuração de bot ativa")
 
     # Determine message type and content
     message_type = map_bridge_type_to_message_type(payload.message_type)
@@ -126,7 +126,7 @@ async def receive_whatsapp_message(
     # Check trigger mode (skip if not matching)
     if message_type == MessageType.TEXT and not bot_config.should_respond(content):
         logger.info("Message filtered by trigger mode", extra={"trigger_mode": str(bot_config.trigger_mode)})
-        return WebhookResponse(status="filtered", message="Message did not match trigger criteria")
+        return WebhookResponse(status="filtered", message="Mensagem não correspondeu aos critérios de gatilho")
 
     # Persist the incoming message log
     mongodb = get_mongodb()
@@ -159,12 +159,12 @@ async def receive_whatsapp_message(
         logger.error("Failed to queue Celery task", extra={"error": str(exc)})
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Message queue unavailable. Please retry.",
+            detail="Fila de mensagens indisponível. Tente novamente.",
         )
 
     return WebhookResponse(
         status="accepted",
-        message="Message received and queued for processing",
+        message="Mensagem recebida e enfileirada para processamento",
         processing=True,
     )
 
@@ -173,4 +173,4 @@ async def receive_whatsapp_message(
 async def receive_whatsapp_status(request: Request):
     """Receive status updates (message acks, connection status, etc)."""
     logger.debug("Status webhook received")
-    return WebhookResponse(status="received", message="Status update received")
+    return WebhookResponse(status="received", message="Atualização de status recebida")

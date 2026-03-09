@@ -146,7 +146,7 @@ export default function DashboardPage() {
 
   const statCards = [
     {
-      title: 'Total de Tenants',
+      title: 'Total de Inquilinos',
       value: stats?.totalTenants ?? 0,
       icon: Users,
       color: 'from-violet-500 to-indigo-500',
@@ -221,7 +221,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-violet-400" />
-                Desempenho por Tenant
+                Desempenho por Inquilino
               </CardTitle>
             </CardHeader>
             <CardContent>

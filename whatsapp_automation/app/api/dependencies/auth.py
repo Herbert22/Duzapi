@@ -19,13 +19,13 @@ async def get_current_tenant(
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key"
+            detail="Chave de API inválida"
         )
     
     if not tenant.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Tenant account is deactivated"
+            detail="Conta do tenant está desativada"
         )
     
     return tenant

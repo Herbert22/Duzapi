@@ -165,6 +165,65 @@ def _openai_chat_sync(messages: list, system_prompt: str, api_key: str, model: s
 
 
 # ---------------------------------------------------------------------------
+# Helper: Text-to-Speech (sync OpenAI TTS)
+# ---------------------------------------------------------------------------
+
+def _generate_tts_audio_sync(text: str, api_key: str) -> Optional[str]:
+    """Generate audio from text using OpenAI TTS API. Returns base64 encoded audio."""
+    import base64
+    from openai import OpenAI
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice="nova",
+            input=text[:4096],  # OpenAI TTS limit
+            response_format="opus",
+        )
+
+        audio_bytes = response.content
+        return base64.b64encode(audio_bytes).decode("utf-8")
+
+    except Exception as e:
+        logger.error(f"TTS generation failed: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Helper: send WhatsApp audio message (sync requests)
+# ---------------------------------------------------------------------------
+
+def _send_whatsapp_audio_sync(session_name: str, to_phone: str, audio_base64: str) -> bool:
+    """Send audio as PTT (voice message) via bridge."""
+    phone = to_phone.replace("+", "").replace("-", "").replace(" ", "")
+    if not phone.endswith("@c.us") and not phone.endswith("@lid"):
+        phone = f"{phone}@c.us"
+
+    url = f"{settings.WHATSAPP_BRIDGE_URL}/api/{session_name}/send-audio"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.BRIDGE_AUTH_TOKEN}",
+    }
+    payload = {
+        "phone": phone,
+        "audio_base64": audio_base64,
+        "mime_type": "audio/ogg",
+    }
+
+    try:
+        resp = req_lib.post(url, json=payload, headers=headers, timeout=60)
+        if resp.status_code in (200, 201):
+            logger.info(f"Audio sent to {to_phone}")
+            return True
+        logger.error(f"Bridge audio error: status={resp.status_code}, body={resp.text[:200]}")
+        return False
+    except Exception as e:
+        logger.error(f"Error sending audio: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Helper: send WhatsApp message (sync requests)
 # ---------------------------------------------------------------------------
 
@@ -253,6 +312,8 @@ def process_and_respond_task(
         raw_api_key = bot_config.openai_api_key
         ai_provider = getattr(bot_config, "ai_provider", None) or settings.AI_PROVIDER
         tenant_phone = tenant.phone_number
+        enable_audio_response = getattr(bot_config, "enable_audio_response", False)
+        initial_message = getattr(bot_config, "initial_message", None) or None
 
     # Resolve API key based on provider (must be set in bot config)
     if raw_api_key:
@@ -354,6 +415,38 @@ def process_and_respond_task(
     )
 
     # ------------------------------------------------------------------
+    # 7.5. Check if this is a first contact → send initial message
+    # ------------------------------------------------------------------
+    send_session = bridge_session_id or tenant_phone
+    is_first_contact = len(history) <= 1  # Only the current message exists
+
+    if is_first_contact and initial_message:
+        logger.info(f"First contact detected — sending initial message to {sender_phone}")
+        _send_whatsapp_message_sync(
+            session_name=send_session,
+            to_phone=sender_phone,
+            message=initial_message,
+        )
+        # Log the initial message
+        mongo_db["message_logs"].insert_one({
+            "_id": str(_uuid.uuid4()),
+            "tenant_id": tenant_id,
+            "session_id": session_id,
+            "sender_phone": tenant_phone,
+            "message_type": "text",
+            "content": initial_message,
+            "transcription": None,
+            "ai_response": None,
+            "processed_at": now,
+            "response_sent_at": None,
+            "message_id": None,
+            "is_from_me": True,
+            "error": None,
+        })
+        # Small pause between initial message and AI response
+        time.sleep(1.5)
+
+    # ------------------------------------------------------------------
     # 8. Humanised delay (typing simulation)
     # ------------------------------------------------------------------
     delay_seconds = random.uniform(delay_min, delay_max)
@@ -361,15 +454,32 @@ def process_and_respond_task(
     time.sleep(delay_seconds)
 
     # ------------------------------------------------------------------
-    # 9. Send via Bridge
+    # 9. Send via Bridge (text or audio)
     # ------------------------------------------------------------------
-    # Use bridge session ID if available, fall back to tenant phone
-    send_session = bridge_session_id or tenant_phone
-    send_success = _send_whatsapp_message_sync(
-        session_name=send_session,
-        to_phone=sender_phone,
-        message=ai_response,
-    )
+    send_success = False
+    sent_as_audio = False
+
+    if enable_audio_response:
+        # Generate TTS audio and send as voice message
+        whisper_key = settings.OPENAI_API_KEY or api_key
+        audio_b64 = _generate_tts_audio_sync(ai_response, whisper_key)
+        if audio_b64:
+            send_success = _send_whatsapp_audio_sync(
+                session_name=send_session,
+                to_phone=sender_phone,
+                audio_base64=audio_b64,
+            )
+            sent_as_audio = send_success
+            if not send_success:
+                logger.warning("Audio send failed, falling back to text")
+
+    # Fallback to text if audio not enabled or failed
+    if not send_success:
+        send_success = _send_whatsapp_message_sync(
+            session_name=send_session,
+            to_phone=sender_phone,
+            message=ai_response,
+        )
 
     if send_success:
         # Log the bot's outgoing message
@@ -378,7 +488,7 @@ def process_and_respond_task(
             "tenant_id": tenant_id,
             "session_id": session_id,
             "sender_phone": tenant_phone,
-            "message_type": "text",
+            "message_type": "audio" if sent_as_audio else "text",
             "content": ai_response,
             "transcription": None,
             "ai_response": None,
@@ -392,6 +502,7 @@ def process_and_respond_task(
     return {
         "success": True,
         "sent": send_success,
+        "sent_as_audio": sent_as_audio,
         "delay_applied": round(delay_seconds, 2),
         "transcription": transcription,
         "response_preview": ai_response[:100],

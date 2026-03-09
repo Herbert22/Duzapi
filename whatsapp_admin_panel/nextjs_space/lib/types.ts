@@ -32,6 +32,11 @@ export interface BotConfig {
   trigger_keywords: string[];
   openai_api_key: string;
   is_active: boolean;
+  initial_message?: string;
+  enable_audio_response?: boolean;
+  position?: number;
+  has_openai_key?: boolean;
+  ai_provider?: 'gemini' | 'openai';
   created_at?: string;
   updated_at?: string;
 }

@@ -29,11 +29,11 @@ async def verify_admin_token(
 ):
     """Verify the admin/bridge auth token."""
     if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header required")
+        raise HTTPException(status_code=401, detail="Cabeçalho de autorização obrigatório")
 
     token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
     if token != settings.BRIDGE_AUTH_TOKEN:
-        raise HTTPException(status_code=401, detail="Invalid admin token")
+        raise HTTPException(status_code=401, detail="Token de admin inválido")
 
 
 @router.get("/", response_model=List[BotConfigResponse])
@@ -43,7 +43,7 @@ async def list_all_bot_configs(
 ):
     """List all bot configurations across all tenants."""
     result = await db.execute(
-        select(BotConfig).order_by(BotConfig.created_at.desc())
+        select(BotConfig).order_by(BotConfig.position.asc(), BotConfig.created_at.desc())
     )
     configs = result.scalars().all()
     return [BotConfigResponse.from_orm_with_key_check(c) for c in configs]
@@ -59,7 +59,7 @@ async def get_bot_config(
     repo = BotConfigRepository(db)
     config = await repo.get_by_id(config_id)
     if not config:
-        raise HTTPException(status_code=404, detail="Bot configuration not found")
+        raise HTTPException(status_code=404, detail="Configuração de bot não encontrada")
     return BotConfigResponse.from_orm_with_key_check(config)
 
 
@@ -81,6 +81,9 @@ async def create_bot_config(
         trigger_keywords=config_data.trigger_keywords,
         openai_api_key=config_data.openai_api_key,
         is_active=config_data.is_active,
+        initial_message=config_data.initial_message,
+        enable_audio_response=config_data.enable_audio_response,
+        position=config_data.position,
     )
     if hasattr(config_data, "ai_provider") and config_data.ai_provider:
         bot_config.ai_provider = config_data.ai_provider.value
@@ -99,7 +102,7 @@ async def update_bot_config(
     repo = BotConfigRepository(db)
     config = await repo.get_by_id(config_id)
     if not config:
-        raise HTTPException(status_code=404, detail="Bot configuration not found")
+        raise HTTPException(status_code=404, detail="Configuração de bot não encontrada")
 
     update_data = config_data.model_dump(exclude_unset=True)
     if "trigger_mode" in update_data and update_data["trigger_mode"]:
@@ -118,6 +121,22 @@ async def update_bot_config(
     return BotConfigResponse.from_orm_with_key_check(updated)
 
 
+@router.put("/reorder", status_code=200)
+async def reorder_bot_configs(
+    items: List[dict],
+    _=Depends(verify_admin_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reorder bot configurations (drag-and-drop). Expects [{id, position}, ...]."""
+    repo = BotConfigRepository(db)
+    for item in items:
+        config = await repo.get_by_id(UUID(str(item["id"])))
+        if config:
+            config.position = item["position"]
+            await repo.update(config)
+    return {"success": True}
+
+
 @router.delete("/{config_id}", status_code=204)
 async def delete_bot_config(
     config_id: UUID,
@@ -128,6 +147,6 @@ async def delete_bot_config(
     repo = BotConfigRepository(db)
     config = await repo.get_by_id(config_id)
     if not config:
-        raise HTTPException(status_code=404, detail="Bot configuration not found")
+        raise HTTPException(status_code=404, detail="Configuração de bot não encontrada")
     await repo.delete(config_id)
     return None

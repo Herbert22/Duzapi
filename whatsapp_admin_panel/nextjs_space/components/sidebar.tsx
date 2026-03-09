@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Tenants', href: '/tenants', icon: Users },
+  { name: 'Inquilinos', href: '/tenants', icon: Users },
   { name: 'Configurações Bot', href: '/bot-configs', icon: Bot },
   { name: 'WhatsApp', href: '/whatsapp', icon: Smartphone },
   { name: 'Logs de Conversa', href: '/messages', icon: MessageSquare },
@@ -66,7 +66,7 @@ export function Sidebar() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white">WhatsApp</h1>
-              <p className="text-xs text-slate-400">Admin Panel</p>
+              <p className="text-xs text-slate-400">Painel Admin</p>
             </div>
           </div>
 

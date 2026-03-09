@@ -31,7 +31,7 @@ async def create_bot_config(
     if config_data.tenant_id != current_tenant.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot create config for another tenant"
+            detail="Não é possível criar configuração para outro tenant"
         )
     
     repo = BotConfigRepository(db)
@@ -75,7 +75,7 @@ async def get_active_config(
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active bot configuration found"
+            detail="Nenhuma configuração de bot ativa encontrada"
         )
     
     return BotConfigResponse.from_orm_with_key_check(config)
@@ -94,13 +94,13 @@ async def get_bot_config(
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot configuration not found"
+            detail="Configuração de bot não encontrada"
         )
     
     if config.tenant_id != current_tenant.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            detail="Acesso negado"
         )
     
     return BotConfigResponse.from_orm_with_key_check(config)
@@ -120,13 +120,13 @@ async def update_bot_config(
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot configuration not found"
+            detail="Configuração de bot não encontrada"
         )
     
     if config.tenant_id != current_tenant.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            detail="Acesso negado"
         )
     
     update_data = config_data.model_dump(exclude_unset=True)
@@ -155,13 +155,13 @@ async def delete_bot_config(
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot configuration not found"
+            detail="Configuração de bot não encontrada"
         )
     
     if config.tenant_id != current_tenant.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            detail="Acesso negado"
         )
     
     await repo.delete(config_id)
@@ -181,13 +181,13 @@ async def activate_bot_config(
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot configuration not found"
+            detail="Configuração de bot não encontrada"
         )
     
     if config.tenant_id != current_tenant.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            detail="Acesso negado"
         )
     
     # Deactivate all other configs for this tenant

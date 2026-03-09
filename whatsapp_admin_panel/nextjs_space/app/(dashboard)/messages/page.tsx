@@ -147,7 +147,7 @@ export default function MessagesPage() {
               }}
               className="h-10 px-4 rounded-xl border border-slate-600 bg-slate-800/50 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500 min-w-[180px]"
             >
-              <option value="">Todos os Tenants</option>
+              <option value="">Todos os Inquilinos</option>
               {tenants?.map((t) => (
                 <option key={t?.id} value={t?.id}>{t?.name}</option>
               ))}
@@ -159,7 +159,7 @@ export default function MessagesPage() {
             >
               <option value="">Todos os Tipos</option>
               <option value="text">Texto</option>
-              <option value="audio">Audio</option>
+              <option value="audio">Áudio</option>
               <option value="image">Imagem</option>
             </select>
           </div>

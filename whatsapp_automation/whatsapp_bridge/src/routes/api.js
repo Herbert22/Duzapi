@@ -271,6 +271,37 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
+// POST /api/:sessionId/send-audio  (send audio/PTT message, requires auth)
+// Called by the Python backend for TTS audio responses
+// ---------------------------------------------------------------------------
+router.post(
+  '/:sessionId/send-audio',
+  requireAuth,
+  sendMessageLimiter,
+  param('sessionId').isString().trim().notEmpty(),
+  body('phone').isString().trim().notEmpty(),
+  body('audio_base64').isString().trim().notEmpty(),
+  handleValidationErrors,
+  async (req, res) => {
+    const { sessionId } = req.params;
+    const { phone, audio_base64, mime_type } = req.body;
+    try {
+      logger.info('Send audio request', { sessionId, to: phone });
+      const result = await sessionManager.sendAudioBase64(
+        sessionId,
+        phone,
+        audio_base64,
+        mime_type || 'audio/ogg',
+      );
+      res.json({ success: true, ...result });
+    } catch (error) {
+      logger.error('Error sending audio', { sessionId, to: phone, error: error.message });
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // GET /api/audio/:filename  (protected — requires auth)
 // Replaces unauthenticated express.static for audio files
 // ---------------------------------------------------------------------------

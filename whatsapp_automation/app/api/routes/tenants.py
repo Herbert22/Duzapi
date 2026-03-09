@@ -32,7 +32,7 @@ async def create_tenant(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Phone number already registered"
+            detail="Número de telefone já cadastrado"
         )
     
     # Generate API key
@@ -83,7 +83,7 @@ async def get_tenant(
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found"
+            detail="Tenant não encontrado"
         )
     
     return TenantResponse.model_validate(tenant)
@@ -102,7 +102,7 @@ async def update_tenant(
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found"
+            detail="Tenant não encontrado"
         )
     
     # Check if new phone is already in use
@@ -111,7 +111,7 @@ async def update_tenant(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Phone number already in use"
+                detail="Número de telefone já em uso"
             )
     
     # Update fields
@@ -135,7 +135,7 @@ async def delete_tenant(
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found"
+            detail="Tenant não encontrado"
         )
     
     return None
@@ -153,7 +153,7 @@ async def regenerate_api_key(
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found"
+            detail="Tenant não encontrado"
         )
     
     new_api_key = generate_api_key()

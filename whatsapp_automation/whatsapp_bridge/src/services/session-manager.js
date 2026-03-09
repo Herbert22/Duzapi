@@ -390,6 +390,23 @@ class SessionManager {
     return { success: true, messageId: result.id, to: chatId, timestamp: new Date().toISOString() };
   }
 
+  async sendAudioBase64(sessionId, to, base64Audio, mimeType = 'audio/ogg') {
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.isConnected) {
+      throw new Error(`Session ${sessionId} is not connected`);
+    }
+
+    const chatId = to.includes('@') ? to : `${to}@c.us`;
+    // Send as PTT (Push-to-Talk / voice message) using base64
+    const result = await session.client.sendPttFromBase64(
+      chatId,
+      `data:${mimeType};base64,${base64Audio}`,
+      'audio.ogg',
+    );
+    logger.info('Audio sent', { sessionId, to: chatId, messageId: result.id });
+    return { success: true, messageId: result.id, to: chatId, timestamp: new Date().toISOString() };
+  }
+
   getQRCode(sessionId) {
     return this.qrCodes.get(sessionId);
   }

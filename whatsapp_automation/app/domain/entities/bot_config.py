@@ -38,7 +38,16 @@ class BotConfig(Base):
 
     # API key for AI provider (tenant-specific, encrypted in production)
     openai_api_key = Column(String(255), nullable=True)
-    
+
+    # Initial greeting message (sent on first contact)
+    initial_message = Column(Text, nullable=True)
+
+    # Audio response settings
+    enable_audio_response = Column(Boolean, default=False, nullable=False, server_default="false")
+
+    # Position for drag-and-drop ordering
+    position = Column(Integer, default=0, nullable=False, server_default="0")
+
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -54,7 +54,7 @@ export default function TenantsPage() {
       }
     } catch (error) {
       console.error('Error fetching tenants:', error);
-      toast.error('Erro ao carregar tenants');
+      toast.error('Erro ao carregar inquilinos');
     } finally {
       setLoading(false);
     }
@@ -87,14 +87,14 @@ export default function TenantsPage() {
         if (data?.api_key) {
           showApiKey(data.api_key, data.name || formData.name);
         } else {
-          toast.success('Tenant criado com sucesso!');
+          toast.success('Inquilino criado com sucesso!');
         }
       } else {
         const error = await response.json();
-        toast.error(error?.detail ?? 'Erro ao criar tenant');
+        toast.error(error?.detail ?? 'Erro ao criar inquilino');
       }
     } catch (error) {
-      toast.error('Erro ao criar tenant');
+      toast.error('Erro ao criar inquilino');
     } finally {
       setSubmitting(false);
     }
@@ -110,15 +110,15 @@ export default function TenantsPage() {
         body: JSON.stringify(formData),
       });
       if (response.ok) {
-        toast.success('Tenant atualizado com sucesso!');
+        toast.success('Inquilino atualizado com sucesso!');
         setIsEditModalOpen(false);
         fetchTenants();
       } else {
         const error = await response.json();
-        toast.error(error?.detail ?? 'Erro ao atualizar tenant');
+        toast.error(error?.detail ?? 'Erro ao atualizar inquilino');
       }
     } catch (error) {
-      toast.error('Erro ao atualizar tenant');
+      toast.error('Erro ao atualizar inquilino');
     } finally {
       setSubmitting(false);
     }
@@ -132,14 +132,14 @@ export default function TenantsPage() {
         method: 'DELETE',
       });
       if (response.ok) {
-        toast.success('Tenant deletado com sucesso!');
+        toast.success('Inquilino deletado com sucesso!');
         setIsDeleteModalOpen(false);
         fetchTenants();
       } else {
-        toast.error('Erro ao deletar tenant');
+        toast.error('Erro ao deletar inquilino');
       }
     } catch (error) {
-      toast.error('Erro ao deletar tenant');
+      toast.error('Erro ao deletar inquilino');
     } finally {
       setSubmitting(false);
     }
@@ -153,7 +153,7 @@ export default function TenantsPage() {
         body: JSON.stringify({ is_active: !tenant.is_active }),
       });
       if (response.ok) {
-        toast.success(tenant.is_active ? 'Tenant desativado' : 'Tenant ativado');
+        toast.success(tenant.is_active ? 'Inquilino desativado' : 'Inquilino ativado');
         fetchTenants();
       }
     } catch (error) {
@@ -206,12 +206,12 @@ export default function TenantsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">Tenants</h1>
-          <p className="text-slate-400 mt-1">Gerencie os tenants do sistema</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-white">Inquilinos</h1>
+          <p className="text-slate-400 mt-1">Gerencie os inquilinos do sistema</p>
         </div>
         <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
-          Novo Tenant
+          Novo Inquilino
         </Button>
       </div>
 
@@ -220,12 +220,12 @@ export default function TenantsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-violet-400" />
-              Lista de Tenants
+              Lista de Inquilinos
             </CardTitle>
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <Input
-                placeholder="Buscar tenant..."
+                placeholder="Buscar inquilino..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -237,7 +237,7 @@ export default function TenantsPage() {
           {filteredTenants?.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Nenhum tenant encontrado</p>
+              <p>Nenhum inquilino encontrado</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -391,14 +391,14 @@ export default function TenantsPage() {
       <Modal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
-        title="Novo Tenant"
-        description="Crie um novo tenant para o sistema"
+        title="Novo Inquilino"
+        description="Crie um novo inquilino para o sistema"
       >
         <div className="space-y-4 mt-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Nome</label>
             <Input
-              placeholder="Nome do tenant"
+              placeholder="Nome do inquilino"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
@@ -427,14 +427,14 @@ export default function TenantsPage() {
       <Modal
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
-        title="Editar Tenant"
-        description="Atualize as informações do tenant"
+        title="Editar Inquilino"
+        description="Atualize as informações do inquilino"
       >
         <div className="space-y-4 mt-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Nome</label>
             <Input
-              placeholder="Nome do tenant"
+              placeholder="Nome do inquilino"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
@@ -468,7 +468,7 @@ export default function TenantsPage() {
       >
         <div className="mt-4">
           <p className="text-slate-300">
-            Tem certeza que deseja deletar o tenant <strong className="text-white">{selectedTenant?.name}</strong>?
+            Tem certeza que deseja deletar o inquilino <strong className="text-white">{selectedTenant?.name}</strong>?
           </p>
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>

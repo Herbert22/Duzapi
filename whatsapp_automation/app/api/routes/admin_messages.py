@@ -22,10 +22,10 @@ async def verify_admin_token(
     authorization: Optional[str] = Header(None),
 ):
     if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header required")
+        raise HTTPException(status_code=401, detail="Cabeçalho de autorização obrigatório")
     token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
     if token != settings.BRIDGE_AUTH_TOKEN:
-        raise HTTPException(status_code=401, detail="Invalid admin token")
+        raise HTTPException(status_code=401, detail="Token de admin inválido")
 
 
 @router.get("/history")

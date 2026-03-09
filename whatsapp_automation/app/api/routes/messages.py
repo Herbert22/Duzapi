@@ -68,7 +68,7 @@ async def get_conversation(
     if not all_messages:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found"
+            detail="Conversa não encontrada"
         )
     
     # Limit and return
@@ -100,7 +100,7 @@ async def get_messages_by_phone(
     if not messages:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No messages found for this phone number"
+            detail="Nenhuma mensagem encontrada para este número"
         )
     
     return [MessageLogResponse.model_validate(m.model_dump()) for m in messages]

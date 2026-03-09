@@ -26,7 +26,10 @@ class BotConfigBase(BaseModel):
     trigger_mode: TriggerModeEnum = Field(default=TriggerModeEnum.ALL, description="When to trigger responses")
     trigger_keywords: List[str] = Field(default=[], description="Keywords to trigger response (if mode=keywords)")
     ai_provider: AIProviderEnum = Field(default=AIProviderEnum.GEMINI, description="AI provider: gemini or openai")
-    
+    initial_message: Optional[str] = Field(None, max_length=2000, description="Mensagem inicial enviada no primeiro contato")
+    enable_audio_response: bool = Field(default=False, description="Habilitar resposta por áudio")
+    position: int = Field(default=0, ge=0, description="Posição para ordenação drag-and-drop")
+
     @model_validator(mode="after")
     def validate_delays(self):
         if self.response_delay_min > self.response_delay_max:
@@ -58,6 +61,9 @@ class BotConfigUpdate(BaseModel):
     ai_provider: Optional[AIProviderEnum] = None
     openai_api_key: Optional[str] = None
     is_active: Optional[bool] = None
+    initial_message: Optional[str] = Field(None, max_length=2000)
+    enable_audio_response: Optional[bool] = None
+    position: Optional[int] = Field(None, ge=0)
 
 
 class BotConfigResponse(BotConfigBase):
@@ -85,6 +91,9 @@ class BotConfigResponse(BotConfigBase):
             "trigger_mode": obj.trigger_mode,
             "trigger_keywords": obj.trigger_keywords or [],
             "ai_provider": getattr(obj, "ai_provider", None) or "gemini",
+            "initial_message": getattr(obj, "initial_message", None),
+            "enable_audio_response": getattr(obj, "enable_audio_response", False),
+            "position": getattr(obj, "position", 0),
             "is_active": obj.is_active,
             "created_at": obj.created_at,
             "updated_at": obj.updated_at,
