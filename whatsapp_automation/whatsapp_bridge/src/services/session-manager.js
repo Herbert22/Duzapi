@@ -203,15 +203,11 @@ class SessionManager {
         useChrome: config.wppconnect.useChrome,
         debug: config.wppconnect.debug,
         logQR: config.wppconnect.logQR,
-        browserPathExecutable: '/usr/bin/chromium',
+        browserPathExecutable: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
         browserArgs: config.wppconnect.browserArgs,
         puppeteerOptions: {
-          executablePath: '/usr/bin/chromium',
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
           args: config.wppconnect.browserArgs,
-          env: {
-            ...process.env,
-            CHROME_CRASHPAD_PIPE_NAME: '',
-          }
         },
 
         catchQR: (base64Qr, asciiQR, attempts, urlCode) => {
