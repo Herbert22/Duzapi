@@ -208,6 +208,8 @@ class SessionManager {
         puppeteerOptions: {
           executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
           args: config.wppconnect.browserArgs,
+          timeout: 120000,
+          protocolTimeout: 120000,
         },
 
         catchQR: (base64Qr, asciiQR, attempts, urlCode) => {
