@@ -42,9 +42,12 @@ RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
     --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mv /usr/lib/chromium/chrome_crashpad_handler /usr/lib/chromium/chrome_crashpad_handler.bak \
+    && echo '#!/bin/sh\nexit 0' > /usr/lib/chromium/chrome_crashpad_handler \
+    && chmod +x /usr/lib/chromium/chrome_crashpad_handler
 
-# Set environment variables for Puppeteer
+# Set environment variables for Puppeteer/Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
@@ -63,9 +66,9 @@ RUN npm install --omit=dev
 # Copy source code
 COPY . .
 
-# Create directories for sessions and downloads
-RUN mkdir -p sessions downloads/audio logs && \
-    chown -R whatsapp:whatsapp /app
+# Create directories for sessions, downloads, and crashpad
+RUN mkdir -p sessions downloads/audio logs /tmp/crashes && \
+    chown -R whatsapp:whatsapp /app /tmp/crashes
 
 # Switch to non-root user
 USER whatsapp

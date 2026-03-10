@@ -31,7 +31,11 @@ const config = {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-crash-reporter',
+      '--disable-breakpad',
+      '--disable-features=Crashpad',
+      '--crash-dumps-dir=/tmp/crashes'
     ]
   },
 

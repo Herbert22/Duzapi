@@ -210,7 +210,7 @@ services:
       dockerfile: Dockerfile
     container_name: wa_celery_beat
     restart: unless-stopped
-    command: celery -A app.infrastructure.tasks.celery_app beat --loglevel=info
+    command: celery -A app.infrastructure.tasks.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     environment:
       <<: *backend-env
     depends_on:
@@ -259,6 +259,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    shm_size: '256m'
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp=unconfined
     volumes:
       - whatsapp_sessions:/app/sessions
       - whatsapp_downloads:/app/downloads
