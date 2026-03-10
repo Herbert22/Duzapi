@@ -2,9 +2,9 @@ FROM ghcr.io/puppeteer/puppeteer:24.6.1
 
 USER root
 
-# Set environment variables for Puppeteer/Chrome
+# Chrome path from Puppeteer image cache
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+    PUPPETEER_EXECUTABLE_PATH=/home/pptruser/.cache/puppeteer/chrome/linux-135.0.7049.84/chrome-linux64/chrome
 
 # Create app directory
 WORKDIR /app
@@ -27,8 +27,12 @@ COPY . .
 RUN mkdir -p sessions downloads/audio logs && \
     chown -R whatsapp:whatsapp /app
 
-# Switch to non-root user
-USER whatsapp
+# Create entrypoint that fixes volume permissions then drops to whatsapp user
+RUN echo '#!/bin/bash\nchown -R whatsapp:whatsapp /app/sessions /app/downloads /app/logs 2>/dev/null || true\nexec gosu whatsapp "$@"' > /entrypoint.sh \
+    && chmod +x /entrypoint.sh \
+    && apt-get update && apt-get install -y gosu --no-install-recommends && rm -rf /var/lib/apt/lists/*
+
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Expose port
 EXPOSE 3000
