@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
+import { MediaUpload, detectMediaType } from '@/components/ui/media-upload';
 import {
   ArrowLeft,
   Save,
@@ -85,6 +86,7 @@ function FunnelEditor() {
   const [nodeFormData, setNodeFormData] = useState<Record<string, unknown>>({});
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [canvasDragOver, setCanvasDragOver] = useState(false);
 
   // Load funnel data
   useEffect(() => {
@@ -312,6 +314,71 @@ function FunnelEditor() {
     }
   };
 
+  // Canvas drop handler — auto-create media node from dropped file
+  const handleCanvasDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setCanvasDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    const mediaType = detectMediaType(file);
+    const nodeType: NodeType = mediaType === 'image' ? 'send_image'
+      : mediaType === 'audio' ? 'send_audio'
+      : mediaType === 'video' ? 'send_video'
+      : 'send_document';
+
+    // Upload file
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      toast.loading('Enviando arquivo...', { id: 'canvas-upload' });
+      const res = await fetch('/api/uploads', { method: 'POST', body: formData });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Erro ao enviar arquivo');
+      }
+
+      const data = await res.json();
+      toast.success(`${file.name} enviado!`, { id: 'canvas-upload' });
+
+      // Calculate drop position relative to canvas
+      const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+      const x = bounds ? e.clientX - bounds.left : 300;
+      const y = bounds ? e.clientY - bounds.top : 200;
+
+      const nodeData: Record<string, unknown> = {
+        nodeType,
+        label: getNodeLabel(nodeType),
+      };
+
+      if (nodeType === 'send_audio') {
+        nodeData.audio_url = data.url;
+        nodeData.use_tts = false;
+        nodeData.tts_text = '';
+      } else {
+        nodeData.media_url = data.url;
+        nodeData.caption = '';
+        if (nodeType === 'send_document') {
+          nodeData.filename = data.original_name;
+        }
+      }
+
+      const newNode: Node = {
+        id: crypto.randomUUID(),
+        type: 'funnelNode',
+        position: { x, y },
+        data: nodeData,
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao enviar arquivo', { id: 'canvas-upload' });
+    }
+  }, [nodes, setNodes]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[80vh]">
@@ -387,7 +454,20 @@ function FunnelEditor() {
         </div>
 
         {/* Canvas */}
-        <div ref={reactFlowWrapper} className="flex-1">
+        <div
+          ref={reactFlowWrapper}
+          className={`flex-1 relative ${canvasDragOver ? 'ring-2 ring-violet-500 ring-inset' : ''}`}
+          onDrop={handleCanvasDrop}
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCanvasDragOver(true); } }}
+          onDragLeave={() => setCanvasDragOver(false)}
+        >
+          {canvasDragOver && (
+            <div className="absolute inset-0 z-50 bg-violet-500/10 border-2 border-dashed border-violet-500 rounded-lg flex items-center justify-center pointer-events-none">
+              <div className="bg-slate-800 px-6 py-3 rounded-xl shadow-lg text-violet-300 font-medium">
+                Solte o arquivo para criar um bloco de mídia
+              </div>
+            </div>
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -483,18 +563,25 @@ function NodePropertiesForm({
 
     case 'send_image':
     case 'send_video':
-    case 'send_document':
+    case 'send_document': {
+      const acceptMap: Record<string, string> = {
+        send_image: 'image/*',
+        send_video: 'video/*',
+        send_document: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt',
+      };
       return (
         <>
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">URL da Mídia</label>
-            <Input
-              value={(data.media_url as string) || ''}
-              onChange={(e) => update('media_url', e.target.value)}
-              placeholder="/uploads/arquivo.jpg ou https://..."
-              className="bg-slate-800 border-slate-700 text-white"
-            />
-          </div>
+          <MediaUpload
+            label={nodeType === 'send_image' ? 'Imagem' : nodeType === 'send_video' ? 'Vídeo' : 'Documento'}
+            value={(data.media_url as string) || ''}
+            accept={acceptMap[nodeType]}
+            onChange={(url, filename) => {
+              update('media_url', url);
+              if (nodeType === 'send_document' && filename) {
+                onChange({ ...data, media_url: url, filename });
+              }
+            }}
+          />
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Legenda (opcional)</label>
             <Input
@@ -516,6 +603,7 @@ function NodePropertiesForm({
           )}
         </>
       );
+    }
 
     case 'send_audio':
       return (
@@ -540,15 +628,12 @@ function NodePropertiesForm({
               />
             </div>
           ) : (
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">URL do Áudio</label>
-              <Input
-                value={(data.audio_url as string) || ''}
-                onChange={(e) => update('audio_url', e.target.value)}
-                placeholder="/uploads/audio.ogg"
-                className="bg-slate-800 border-slate-700 text-white"
-              />
-            </div>
+            <MediaUpload
+              label="Arquivo de Áudio"
+              value={(data.audio_url as string) || ''}
+              accept="audio/*"
+              onChange={(url) => update('audio_url', url)}
+            />
           )}
         </>
       );
