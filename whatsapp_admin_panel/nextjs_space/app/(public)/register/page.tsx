@@ -76,7 +76,10 @@ function RegisterForm() {
       }
 
       toast.success('Código de verificação enviado para seu email!');
-      
+
+      // Store password temporarily for auto-login after verification
+      sessionStorage.setItem('_vp', formData.password);
+
       // Redirecionar para página de verificação
       router.push(`/verify-email?email=${encodeURIComponent(formData.email)}&plan=${plan}`);
     } catch (error) {

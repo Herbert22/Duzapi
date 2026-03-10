@@ -50,6 +50,9 @@ function CheckoutForm() {
       // Redirecionar para link de pagamento Asaas
       if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
+      } else if (data.trialActivated) {
+        toast.success(`Trial de 7 dias ativado! Aproveite o DuzAPI.`);
+        router.push('/dashboard');
       } else {
         toast.success('Assinatura criada! Redirecionando...');
         router.push('/dashboard');

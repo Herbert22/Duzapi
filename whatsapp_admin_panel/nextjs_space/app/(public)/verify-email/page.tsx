@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -94,7 +95,26 @@ function VerifyEmailForm() {
       }
 
       toast.success('Email verificado com sucesso!');
-      router.push(`/checkout?plan=${plan}`);
+
+      // Auto sign-in after verification
+      const storedPassword = sessionStorage.getItem('_vp');
+      sessionStorage.removeItem('_vp');
+
+      if (storedPassword) {
+        const signInResult = await signIn('credentials', {
+          email,
+          password: storedPassword,
+          redirect: false,
+        });
+
+        if (signInResult?.ok) {
+          router.push(`/checkout?plan=${plan}`);
+          return;
+        }
+      }
+
+      // Fallback: redirect to login if auto-sign-in fails
+      router.push(`/login?verified=true&plan=${plan}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao verificar código');
     } finally {

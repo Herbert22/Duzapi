@@ -154,7 +154,7 @@ export default async function BillingPage() {
               </span>
             </div>
             <a
-              href={subscription?.asaasPaymentLink || '/checkout'}
+              href={subscription?.asaasPaymentLink || '/checkout?plan=monthly'}
               target={subscription?.asaasPaymentLink ? '_blank' : undefined}
               rel={subscription?.asaasPaymentLink ? 'noopener noreferrer' : undefined}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition-all"

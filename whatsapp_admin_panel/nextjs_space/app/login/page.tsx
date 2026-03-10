@@ -1,20 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { MessageSquare, Mail, Lock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import toast from 'react-hot-toast';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const verified = searchParams.get('verified');
+  const plan = searchParams.get('plan');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (verified === 'true') {
+      toast.success('Email verificado! Faça login para continuar.');
+    }
+  }, [verified]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +40,7 @@ export default function LoginPage() {
         toast.error('Email ou senha inválidos');
       } else {
         toast.success('Login realizado com sucesso!');
-        router.replace('/dashboard');
+        router.replace(plan ? `/checkout?plan=${plan}` : '/dashboard');
       }
     } catch (error) {
       toast.error('Erro ao fazer login');
@@ -189,5 +198,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
