@@ -176,8 +176,8 @@ export const PLANS = {
   monthly: {
     id: 'monthly',
     name: 'Plano Mensal',
-    price: 97.00,
-    priceInCents: 9700,
+    price: 129.90,
+    priceInCents: 12990,
     cycle: 'MONTHLY' as const,
     description: 'Acesso completo ao WhatsApp Automation',
     features: [
@@ -191,13 +191,13 @@ export const PLANS = {
   yearly: {
     id: 'yearly',
     name: 'Plano Anual',
-    price: 970.00,
-    priceInCents: 97000,
+    price: 1299.00,
+    priceInCents: 129900,
     cycle: 'YEARLY' as const,
     description: 'Acesso completo ao WhatsApp Automation - Economia de 2 meses!',
     features: [
       'Tudo do plano mensal',
-      'Economia de R$ 194/ano',
+      'Economia de R$ 259,80/ano',
       'Até 10.000 mensagens/mês',
       'Suporte VIP',
       'Configuração assistida',
