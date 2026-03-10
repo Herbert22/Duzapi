@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { checkRateLimit, RATE_LIMIT_CONFIGS, getClientIP } from '@/lib/rate-limit';
+import { sendEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,68 +70,38 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Enviar email com código
-    const appUrl = process.env.NEXTAUTH_URL || '';
-    const appName = appUrl ? new URL(appUrl).hostname.split('.')[0] : 'DuzAPI';
-
+    // Enviar email com código via SMTP
     const htmlBody = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
           <h1 style="color: #7c3aed; margin: 0;">DuzAPI</h1>
           <p style="color: #666; margin-top: 5px;">WhatsApp Automation</p>
         </div>
-        
+
         <div style="background: #f9fafb; padding: 30px; border-radius: 12px; text-align: center;">
           <h2 style="color: #333; margin-bottom: 10px;">Seu código de verificação</h2>
           <p style="color: #666; margin-bottom: 20px;">Use o código abaixo para verificar seu email:</p>
-          
+
           <div style="background: #7c3aed; color: white; font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 20px 40px; border-radius: 8px; display: inline-block;">
             ${code}
           </div>
-          
+
           <p style="color: #999; font-size: 14px; margin-top: 20px;">
             Este código expira em 15 minutos.
           </p>
         </div>
-        
+
         <p style="color: #999; font-size: 12px; text-align: center; margin-top: 30px;">
           Se você não solicitou este código, ignore este email.
         </p>
       </div>
     `;
 
-    try {
-      const emailResponse = await fetch('https://apps.abacus.ai/api/sendNotificationEmail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deployment_token: process.env.ABACUSAI_API_KEY,
-          app_id: process.env.WEB_APP_ID,
-          notification_id: process.env.NOTIF_ID_EMAIL_VERIFICATION_CODE,
-          subject: `${code} é seu código de verificação - DuzAPI`,
-          body: htmlBody,
-          is_html: true,
-          recipient_email: email,
-          sender_email: appUrl ? `noreply@${new URL(appUrl).hostname}` : 'noreply@duzapi.com.br',
-          sender_alias: appName || 'DuzAPI',
-        }),
-      });
-
-      const emailResult = await emailResponse.json();
-      if (!emailResult.success && !emailResult.notification_disabled) {
-        console.error('Email send error:', emailResult);
-        // Não falhar se o email não foi enviado em dev
-        if (process.env.NODE_ENV === 'production') {
-          throw new Error('Erro ao enviar email');
-        }
-      }
-    } catch (emailError) {
-      console.error('Email error:', emailError);
-      // Em desenvolvimento, continuar mesmo sem enviar email
-      if (process.env.NODE_ENV === 'production') {
-        throw emailError;
-      }
-    }
+    await sendEmail({
+      to: email,
+      subject: `${code} é seu código de verificação - DuzAPI`,
+      html: htmlBody,
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import crypto from 'crypto';
+import { sendEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,29 +61,13 @@ export async function POST(request: NextRequest) {
         </div>
       `;
 
-      // Send email via Abacus AI (same provider as verification codes)
+      // Send email via SMTP
       try {
-        const appUrl = process.env.NEXTAUTH_URL || '';
-        const emailResponse = await fetch('https://apps.abacus.ai/api/sendNotificationEmail', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            deployment_token: process.env.ABACUSAI_API_KEY,
-            app_id: process.env.WEB_APP_ID,
-            notification_id: process.env.NOTIF_ID_PASSWORD_RESET || process.env.NOTIF_ID_EMAIL_VERIFICATION_CODE,
-            subject: 'Redefinição de senha — DuzAPI',
-            body: htmlBody,
-            is_html: true,
-            recipient_email: normalizedEmail,
-            sender_email: appUrl ? `noreply@${new URL(appUrl).hostname}` : 'noreply@duzapi.com.br',
-            sender_alias: 'DuzAPI',
-          }),
+        await sendEmail({
+          to: normalizedEmail,
+          subject: 'Redefinição de senha — DuzAPI',
+          html: htmlBody,
         });
-
-        const emailResult = await emailResponse.json();
-        if (!emailResult.success && !emailResult.notification_disabled) {
-          console.error('Password reset email error:', emailResult);
-        }
       } catch (emailError) {
         console.error('Password reset email send error:', emailError);
         // Don't fail the request — still return success to avoid leaking info
