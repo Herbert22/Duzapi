@@ -43,7 +43,11 @@ RUN apt-get update && apt-get install -y \
     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && CHROME_DIR=$(dirname $(readlink -f /usr/bin/google-chrome-stable)) \
+    && mv "$CHROME_DIR/chrome_crashpad_handler" "$CHROME_DIR/chrome_crashpad_handler.bak" || true \
+    && echo '#!/bin/sh\nexit 0' > "$CHROME_DIR/chrome_crashpad_handler" \
+    && chmod +x "$CHROME_DIR/chrome_crashpad_handler"
 
 # Set environment variables for Puppeteer/Chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
@@ -52,8 +56,10 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 # Create app directory
 WORKDIR /app
 
-# Create non-root user
-RUN groupadd -r whatsapp && useradd -r -g whatsapp whatsapp
+# Create non-root user with home directory
+RUN groupadd -r whatsapp && useradd -r -g whatsapp -m whatsapp \
+    && mkdir -p /home/whatsapp/.local/share/applications \
+    && chown -R whatsapp:whatsapp /home/whatsapp
 
 # Copy package files
 COPY package*.json ./
