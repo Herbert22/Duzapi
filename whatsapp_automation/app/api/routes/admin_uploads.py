@@ -24,9 +24,9 @@ ALLOWED_EXTENSIONS = {
     # Images
     ".jpg", ".jpeg", ".png", ".gif", ".webp",
     # Audio
-    ".mp3", ".ogg", ".opus", ".wav", ".m4a",
+    ".mp3", ".ogg", ".oga", ".opus", ".wav", ".m4a", ".aac", ".amr", ".wma",
     # Video
-    ".mp4", ".avi", ".mov", ".webm",
+    ".mp4", ".avi", ".mov", ".webm", ".3gp", ".mkv",
     # Documents
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt",
 }
@@ -34,10 +34,11 @@ ALLOWED_EXTENSIONS = {
 MIME_MAP = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
     ".gif": "image/gif", ".webp": "image/webp",
-    ".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".opus": "audio/opus",
-    ".wav": "audio/wav", ".m4a": "audio/mp4",
+    ".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".oga": "audio/ogg",
+    ".opus": "audio/opus", ".wav": "audio/wav", ".m4a": "audio/mp4",
+    ".aac": "audio/aac", ".amr": "audio/amr", ".wma": "audio/x-ms-wma",
     ".mp4": "video/mp4", ".avi": "video/x-msvideo", ".mov": "video/quicktime",
-    ".webm": "video/webm",
+    ".webm": "video/webm", ".3gp": "video/3gpp", ".mkv": "video/x-matroska",
     ".pdf": "application/pdf", ".doc": "application/msword",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".txt": "text/plain",

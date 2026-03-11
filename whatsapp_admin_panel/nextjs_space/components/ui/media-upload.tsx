@@ -22,9 +22,14 @@ const MEDIA_TYPE_MAP: Record<string, { type: string; icon: typeof Image; label: 
   'audio/opus': { type: 'audio', icon: Music, label: 'Áudio' },
   'audio/wav': { type: 'audio', icon: Music, label: 'Áudio' },
   'audio/mp4': { type: 'audio', icon: Music, label: 'Áudio' },
+  'audio/aac': { type: 'audio', icon: Music, label: 'Áudio' },
+  'audio/amr': { type: 'audio', icon: Music, label: 'Áudio' },
+  'audio/x-ms-wma': { type: 'audio', icon: Music, label: 'Áudio' },
   'video/mp4': { type: 'video', icon: Video, label: 'Vídeo' },
   'video/webm': { type: 'video', icon: Video, label: 'Vídeo' },
   'video/quicktime': { type: 'video', icon: Video, label: 'Vídeo' },
+  'video/3gpp': { type: 'video', icon: Video, label: 'Vídeo' },
+  'video/x-matroska': { type: 'video', icon: Video, label: 'Vídeo' },
   'application/pdf': { type: 'document', icon: FileText, label: 'Documento' },
   'application/msword': { type: 'document', icon: FileText, label: 'Documento' },
   'text/plain': { type: 'document', icon: FileText, label: 'Documento' },
@@ -37,8 +42,8 @@ export function detectMediaType(file: File): 'image' | 'audio' | 'video' | 'docu
 
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
-  if (['mp3', 'ogg', 'opus', 'wav', 'm4a'].includes(ext)) return 'audio';
-  if (['mp4', 'avi', 'mov', 'webm'].includes(ext)) return 'video';
+  if (['mp3', 'ogg', 'oga', 'opus', 'wav', 'm4a', 'aac', 'amr', 'wma'].includes(ext)) return 'audio';
+  if (['mp4', 'avi', 'mov', 'webm', '3gp', 'mkv'].includes(ext)) return 'video';
   return 'document';
 }
 
@@ -175,7 +180,7 @@ export function MediaUpload({ value, onChange, accept, label }: MediaUploadProps
         <input
           ref={fileInputRef}
           type="file"
-          accept={accept || 'image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt'}
+          accept={accept || 'image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.oga,.amr,.3gp,.mkv'}
           onChange={handleFileSelect}
           className="hidden"
         />
