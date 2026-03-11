@@ -31,7 +31,14 @@ const config = {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-translate',
+      '--disable-sync',
+      '--single-process',
+      '--js-flags=--max-old-space-size=256'
     ]
   },
 

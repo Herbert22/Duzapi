@@ -75,14 +75,20 @@ class MessageHandler {
     try {
       // Ignore group messages and status updates
       if (message.isGroupMsg || message.from === 'status@broadcast') {
-        logger.debug('Ignoring group/status message', { sessionId, from: message.from });
         return;
       }
 
       // Ignore messages sent by us
       if (message.fromMe) {
-        logger.debug('Ignoring own message', { sessionId });
         return;
+      }
+
+      // Ignore old messages (sync backlog on reconnect) — older than 60s
+      if (message.timestamp) {
+        const messageAge = Date.now() - message.timestamp * 1000;
+        if (messageAge > 60000) {
+          return;
+        }
       }
 
       const tenantId = this.sessionManager.getTenantId(sessionId);
