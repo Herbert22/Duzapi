@@ -256,14 +256,18 @@ function FunnelEditor() {
           position_x: n.position.x,
           position_y: n.position.y,
         })),
-        edges: edges.map((e) => ({
-          id: e.id,
-          source_node_id: e.source,
-          target_node_id: e.target,
-          condition_label: (e.label as string) || null,
-          condition_value: (e.data as Record<string, unknown>)?.condition_value as string || null,
-          sort_order: (e.data as Record<string, unknown>)?.sort_order as number || 0,
-        })),
+        edges: edges.map((e) => {
+          // Only send edge ID if it's a valid UUID (from server); skip React Flow auto-generated IDs
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
+          return {
+            ...(isUuid ? { id: e.id } : {}),
+            source_node_id: e.source,
+            target_node_id: e.target,
+            condition_label: (e.label as string) || null,
+            condition_value: (e.data as Record<string, unknown>)?.condition_value as string || null,
+            sort_order: (e.data as Record<string, unknown>)?.sort_order as number || 0,
+          };
+        }),
       };
 
       const res = await fetch(`/api/proxy/funnels/${funnelId}/graph`, {
