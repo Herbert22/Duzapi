@@ -17,7 +17,12 @@ const ADMIN_PATHS = ['bot-configs', 'messages', 'funnels', 'uploads'];
 /** Paths that need Bearer token but are NOT under /admin/ prefix */
 const AUTH_PATHS = ['tenants'];
 
-/** Ensure backend paths end with / to avoid FastAPI 307 redirects that lose POST body */
+/** Build the upstream URL.
+ *  - Collection endpoints (e.g. /bot-configs) get a trailing slash so FastAPI matches the
+ *    router root "/" without a 307 redirect.
+ *  - Resource endpoints with an ID (e.g. /bot-configs/{uuid}) must NOT have a trailing
+ *    slash, because FastAPI would 307-redirect to remove it and the PUT/POST body is lost.
+ */
 function backendUrl(path: string, searchParams?: string): string {
   let base: string;
   if (path.startsWith('whatsapp/')) {
@@ -27,8 +32,13 @@ function backendUrl(path: string, searchParams?: string): string {
   } else {
     base = `${BACKEND_URL}/api/v1/${path}`;
   }
-  const withSlash = base.endsWith('/') ? base : `${base}/`;
-  return searchParams ? `${withSlash}?${searchParams}` : withSlash;
+  // Only add trailing slash for collection-level paths (no sub-resource / ID after base).
+  // A path like "bot-configs" is a collection; "bot-configs/861b5..." has a resource ID.
+  const isCollection = ADMIN_PATHS.includes(path) || AUTH_PATHS.includes(path) || path === '';
+  if (isCollection && !base.endsWith('/')) {
+    base += '/';
+  }
+  return searchParams ? `${base}?${searchParams}` : base;
 }
 
 /** Build headers — adds Bearer token for bridge, admin, and auth-required requests */
