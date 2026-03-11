@@ -36,6 +36,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Create non-root user
 RUN useradd -m -u 1000 appuser
 
+# Create uploads directory owned by appuser (persisted via volume)
+RUN mkdir -p /app/uploads && chown appuser:appuser /app/uploads
+
 # Copy application code
 COPY --chown=appuser:appuser . .
 
