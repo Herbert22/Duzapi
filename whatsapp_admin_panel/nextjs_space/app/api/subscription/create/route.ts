@@ -8,6 +8,10 @@ export const dynamic = 'force-dynamic';
 
 const TRIAL_DURATION_DAYS = 7;
 
+// Limits granted during trial and paid subscription
+const PAID_MAX_TENANTS = 5;
+const PAID_MAX_MESSAGES = 10000;
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { planId } = body;
+    const { planId, cpfCnpj } = body;
 
     if (!planId || !['monthly', 'yearly'].includes(planId)) {
       return NextResponse.json({ error: 'Plano inválido' }, { status: 400 });
@@ -51,7 +55,7 @@ export async function POST(request: NextRequest) {
     const isTrialEligible = !trialUsedRecord;
 
     // -----------------------------------------------------------------
-    // Ensure Asaas customer exists
+    // Ensure Asaas customer exists (with cpfCnpj for billing)
     // -----------------------------------------------------------------
     let asaasCustomerId = user.asaasCustomerId;
 
@@ -64,6 +68,7 @@ export async function POST(request: NextRequest) {
         const newCustomer = await createCustomer({
           name: user.name || session.user.email.split('@')[0],
           email: session.user.email,
+          ...(cpfCnpj ? { cpfCnpj: cpfCnpj.replace(/\D/g, '') } : {}),
         });
         asaasCustomerId = newCustomer.id;
       }
@@ -129,6 +134,17 @@ export async function POST(request: NextRequest) {
         startDate: isTrialEligible ? new Date() : undefined,
       },
     });
+
+    // Upgrade user limits on trial activation (so trial users get full access)
+    if (isTrialEligible) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          maxTenants: PAID_MAX_TENANTS,
+          maxMessagesPerMonth: PAID_MAX_MESSAGES,
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

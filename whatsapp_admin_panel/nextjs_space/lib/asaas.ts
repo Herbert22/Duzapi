@@ -171,6 +171,38 @@ export async function cancelSubscription(subscriptionId: string): Promise<boolea
   return response.ok;
 }
 
+/**
+ * Lista cobranças de uma assinatura
+ */
+export async function listSubscriptionPayments(subscriptionId: string): Promise<{ id: string; status: string; value: number; paymentDate: string | null }[]> {
+  const response = await fetch(`${ASAAS_API_URL}/payments?subscription=${subscriptionId}`, {
+    headers: {
+      'access_token': getApiKey(),
+    },
+  });
+
+  if (!response.ok) return [];
+
+  const data = await response.json();
+  return data.data || [];
+}
+
+/**
+ * Estorna um pagamento (refund)
+ */
+export async function refundPayment(paymentId: string, value?: number): Promise<boolean> {
+  const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/refund`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'access_token': getApiKey(),
+    },
+    body: JSON.stringify(value ? { value } : {}),
+  });
+
+  return response.ok;
+}
+
 // Planos disponíveis
 export const PLANS = {
   monthly: {

@@ -36,21 +36,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { event, subscription } = body;
+    const { event } = body;
+
+    console.log(`[WEBHOOK] Asaas event: ${event}`, JSON.stringify(body).slice(0, 500));
 
     // Log unhandled events
     if (!VALID_EVENTS.includes(event)) {
-      console.warn(`[WEBHOOK] Unknown Asaas event: ${event}`, JSON.stringify(body).slice(0, 500));
+      console.warn(`[WEBHOOK] Unknown Asaas event: ${event}`);
       return NextResponse.json({ received: true, handled: false });
     }
+
+    // Asaas sends subscription ID in different places depending on event type:
+    // - Payment events: body.payment.subscription (string ID)
+    // - Subscription events: body.subscription.id (object with id)
+    const subscriptionId = body.payment?.subscription || body.subscription?.id;
 
     // ------------------------------------------------------------------
     // Payment confirmed — activate subscription and upgrade limits
     // ------------------------------------------------------------------
     if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
-      if (subscription?.id) {
+      if (subscriptionId) {
         const sub = await prisma.subscription.findFirst({
-          where: { asaasSubscriptionId: subscription.id },
+          where: { asaasSubscriptionId: subscriptionId },
           include: { user: true },
         });
 
@@ -76,9 +83,9 @@ export async function POST(request: NextRequest) {
     // Payment overdue — mark subscription as pending
     // ------------------------------------------------------------------
     if (event === 'PAYMENT_OVERDUE') {
-      if (subscription?.id) {
+      if (subscriptionId) {
         const sub = await prisma.subscription.findFirst({
-          where: { asaasSubscriptionId: subscription.id },
+          where: { asaasSubscriptionId: subscriptionId },
         });
 
         if (sub) {
@@ -94,9 +101,9 @@ export async function POST(request: NextRequest) {
     // Payment refunded/chargeback — downgrade immediately
     // ------------------------------------------------------------------
     if (event === 'PAYMENT_REFUNDED' || event === 'PAYMENT_CHARGEBACK_REQUESTED') {
-      if (subscription?.id) {
+      if (subscriptionId) {
         const sub = await prisma.subscription.findFirst({
-          where: { asaasSubscriptionId: subscription.id },
+          where: { asaasSubscriptionId: subscriptionId },
         });
 
         if (sub) {
@@ -120,9 +127,12 @@ export async function POST(request: NextRequest) {
     // Subscription created — link Asaas ID (trial already handled in create route)
     // ------------------------------------------------------------------
     if (event === 'SUBSCRIPTION_CREATED') {
-      const customerEmail = body.subscription?.customer?.email;
+      const subId = body.subscription?.id;
+      const customerEmail = body.subscription?.customer?.email
+        // Asaas may also send customer as a string ID, try to extract email from payment
+        || body.subscription?.customerEmail;
 
-      if (customerEmail && subscription?.id) {
+      if (customerEmail && subId) {
         const user = await prisma.user.findUnique({
           where: { email: customerEmail },
           include: {
@@ -133,11 +143,11 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        if (user?.subscriptions[0]) {
+        if (user?.subscriptions[0] && !user.subscriptions[0].asaasSubscriptionId) {
           // Only link the Asaas subscription ID — don't re-activate trial
           await prisma.subscription.update({
             where: { id: user.subscriptions[0].id },
-            data: { asaasSubscriptionId: subscription.id },
+            data: { asaasSubscriptionId: subId },
           });
         }
       }
@@ -147,9 +157,9 @@ export async function POST(request: NextRequest) {
     // Subscription cancelled or expired — downgrade limits
     // ------------------------------------------------------------------
     if (event === 'SUBSCRIPTION_CANCELLED' || event === 'SUBSCRIPTION_EXPIRED') {
-      if (subscription?.id) {
+      if (subscriptionId) {
         const sub = await prisma.subscription.findFirst({
-          where: { asaasSubscriptionId: subscription.id },
+          where: { asaasSubscriptionId: subscriptionId },
         });
 
         if (sub) {

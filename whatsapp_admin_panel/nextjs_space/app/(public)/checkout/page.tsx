@@ -23,6 +23,7 @@ function CheckoutForm() {
   const { data: session, status } = useSession() || {};
 
   const [loading, setLoading] = useState(false);
+  const [cpfCnpj, setCpfCnpj] = useState('');
   const plan = PLANS[planId];
 
   useEffect(() => {
@@ -31,14 +32,37 @@ function CheckoutForm() {
     }
   }, [status, router, planId]);
 
+  const formatCpfCnpj = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length <= 11) {
+      // CPF: 000.000.000-00
+      return digits
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    }
+    // CNPJ: 00.000.000/0000-00
+    return digits
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  };
+
   const handleCheckout = async () => {
+    const digits = cpfCnpj.replace(/\D/g, '');
+    if (digits.length !== 11 && digits.length !== 14) {
+      toast.error('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch('/api/subscription/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, cpfCnpj: digits }),
       });
 
       const data = await response.json();
@@ -125,6 +149,23 @@ function CheckoutForm() {
                 ))}
               </ul>
             </div>
+          </div>
+
+          {/* CPF/CNPJ */}
+          <div className="mb-6">
+            <label className="text-gray-300 text-sm font-medium block mb-2">
+              CPF ou CNPJ <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={cpfCnpj}
+              onChange={(e) => setCpfCnpj(formatCpfCnpj(e.target.value))}
+              maxLength={18}
+              placeholder="000.000.000-00"
+              className="w-full h-11 px-4 rounded-xl border border-gray-600 bg-gray-900/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            />
+            <p className="text-gray-500 text-xs mt-1">Obrigatório para emissão da cobrança</p>
           </div>
 
           {/* Payment Methods */}

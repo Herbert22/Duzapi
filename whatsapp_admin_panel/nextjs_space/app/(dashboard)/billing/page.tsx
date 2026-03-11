@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { CreditCard, Calendar, Users, MessageSquare, AlertCircle, CheckCircle } from 'lucide-react';
+import CancelSubscriptionButton from './CancelSubscriptionButton';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 const BRIDGE_AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN || '';
@@ -175,6 +176,13 @@ export default async function BillingPage() {
               Gerenciar assinatura no Asaas →
             </a>
           </div>
+        )}
+
+        {subscription && (subscription.status === 'active' || subscription.status === 'pending') && (
+          <CancelSubscriptionButton
+            isTrial={!!isTrialActive}
+            hasAsaasSubscription={!!subscription.asaasSubscriptionId}
+          />
         )}
       </div>
 
