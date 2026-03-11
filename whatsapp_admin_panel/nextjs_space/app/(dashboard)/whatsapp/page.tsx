@@ -57,13 +57,21 @@ export default function WhatsAppPage() {
         fetch('/api/proxy/tenants').catch(() => ({ ok: false })),
       ]);
 
-      if ((sessionsRes as Response).ok) {
-        const sessionsData = await (sessionsRes as Response).json();
-        setSessions(Array.isArray(sessionsData) ? sessionsData : sessionsData?.sessions ?? []);
-      }
+      let loadedTenants: Tenant[] = [];
       if ((tenantsRes as Response).ok) {
         const tenantsData = await (tenantsRes as Response).json();
-        setTenants(tenantsData ?? []);
+        loadedTenants = tenantsData ?? [];
+        setTenants(loadedTenants);
+      }
+      if ((sessionsRes as Response).ok) {
+        const sessionsData = await (sessionsRes as Response).json();
+        const rawSessions: WhatsAppSession[] = Array.isArray(sessionsData) ? sessionsData : sessionsData?.sessions ?? [];
+        // Enrich sessions with tenant names
+        const enriched = rawSessions.map((s) => ({
+          ...s,
+          tenantName: s.tenantId ? loadedTenants.find((t) => t.id === s.tenantId)?.name : undefined,
+        }));
+        setSessions(enriched);
       }
     } catch {
       // Backend unavailable - using empty data
@@ -220,9 +228,11 @@ export default function WhatsAppPage() {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'connected':
+      case 'already_connected':
         return 'success';
       case 'connecting':
       case 'qr':
+      case 'waiting_qr_scan':
         return 'warning';
       default:
         return 'secondary';
@@ -232,10 +242,12 @@ export default function WhatsAppPage() {
   const getStatusLabel = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'connected':
+      case 'already_connected':
         return 'Conectado';
       case 'connecting':
         return 'Conectando';
       case 'qr':
+      case 'waiting_qr_scan':
         return 'Aguardando QR';
       default:
         return 'Desconectado';

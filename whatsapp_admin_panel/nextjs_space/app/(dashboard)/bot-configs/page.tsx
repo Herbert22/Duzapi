@@ -285,6 +285,7 @@ export default function BotConfigsPage() {
     openai_api_key: '',
     initial_message: '',
     enable_audio_response: false,
+    is_active: true,
   });
 
   const sensors = useSensors(
@@ -332,6 +333,7 @@ export default function BotConfigsPage() {
       openai_api_key: '',
       initial_message: '',
       enable_audio_response: false,
+      is_active: true,
     });
     setKeywordInput('');
   };
@@ -590,6 +592,7 @@ export default function BotConfigsPage() {
       openai_api_key: '',
       initial_message: config.initial_message ?? '',
       enable_audio_response: config.enable_audio_response ?? false,
+      is_active: config.is_active ?? true,
     });
     setIsEditModalOpen(true);
   };
@@ -893,6 +896,36 @@ export default function BotConfigsPage() {
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                   formData.enable_audio_response ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Active/Inactive toggle */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-700/30 border border-slate-700/50">
+            <div className="flex items-center gap-3">
+              {formData.is_active ? (
+                <Power className="w-5 h-5 text-green-400" />
+              ) : (
+                <PowerOff className="w-5 h-5 text-red-400" />
+              )}
+              <div>
+                <p className="text-sm font-medium text-white">Bot Ativo</p>
+                <p className="text-xs text-slate-400">
+                  {formData.is_active ? 'O bot está respondendo mensagens' : 'O bot está desativado'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                formData.is_active ? 'bg-green-600' : 'bg-slate-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  formData.is_active ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

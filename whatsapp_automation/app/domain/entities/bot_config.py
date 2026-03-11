@@ -37,7 +37,7 @@ class BotConfig(Base):
     ai_provider = Column(String(20), default="gemini", nullable=False, server_default="gemini")
 
     # API key for AI provider (tenant-specific, encrypted in production)
-    openai_api_key = Column(String(255), nullable=True)
+    openai_api_key = Column(Text, nullable=True)
 
     # Initial greeting message (sent on first contact)
     initial_message = Column(Text, nullable=True)
