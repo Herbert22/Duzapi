@@ -151,6 +151,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - backend_uploads:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -186,6 +187,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - backend_uploads:/app/uploads
     healthcheck:
       test: ["CMD", "celery", "-A", "app.infrastructure.tasks.celery_app", "inspect", "ping", "--timeout=10"]
       interval: 30s
@@ -390,6 +392,7 @@ volumes:
   redis_data:
   whatsapp_sessions:
   whatsapp_downloads:
+  backend_uploads:
 
 networks:
   wa_network:
