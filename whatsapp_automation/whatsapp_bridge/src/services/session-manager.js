@@ -203,6 +203,7 @@ class SessionManager {
         useChrome: config.wppconnect.useChrome,
         debug: config.wppconnect.debug,
         logQR: config.wppconnect.logQR,
+        autoClose: 90000,
         browserPathExecutable: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
         browserArgs: config.wppconnect.browserArgs,
         puppeteerOptions: {

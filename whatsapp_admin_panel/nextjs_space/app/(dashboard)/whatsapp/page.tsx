@@ -135,24 +135,22 @@ export default function WhatsAppPage() {
   const fetchQrCode = useCallback(async (sessionId: string) => {
     setQrLoading(true);
     try {
-      // Start session first (if not already running, bridge handles idempotency)
+      // Start session (bridge handles idempotency if already running)
       await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/start`, {
         method: 'POST',
       });
 
-      // Wait for QR to be generated
-      let attempts = 0;
-      const maxAttempts = 10;
+      // Poll for QR code — short initial delay, then quick retries
       const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      const maxAttempts = 15;
 
-      while (attempts < maxAttempts) {
-        await delay(attempts === 0 ? 2000 : 1500);
-        attempts++;
+      for (let i = 0; i < maxAttempts; i++) {
+        await delay(i === 0 ? 500 : 1000);
 
         const response = await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/qrcode`);
         if (response.ok) {
           const data = await response.json();
-          const qr = data?.qrCode || data?.qrcode;
+          const qr = data?.qrCode || data?.qrcode || data?.base64;
           if (qr) {
             setQrCode(qr);
             setIsQrModalOpen(true);
@@ -162,7 +160,7 @@ export default function WhatsAppPage() {
         }
       }
       toast.error('QR Code não disponível. Tente novamente.');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao conectar com WhatsApp Bridge');
     } finally {
       setQrLoading(false);
