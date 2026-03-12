@@ -212,16 +212,17 @@ export default function WhatsAppPage() {
         });
       }
 
-      // Close modal immediately — don't wait for Chromium startup
       const sessionName = newSessionId;
+
+      // Close create modal → open QR modal with loading state
       setIsNewSessionModalOpen(false);
       setNewSessionId('');
       setSelectedTenantId('');
-
-      toast.success('Sessão criada! Gerando QR Code...');
-
-      // Start session + fetch QR in background
       setSelectedSession(sessionName);
+      setQrCode(null);
+      setIsQrModalOpen(true);
+
+      // Start session + fetch QR (QR modal already visible with spinner)
       fetchQrCode(sessionName);
     } catch (error) {
       toast.error('Erro ao criar sessão');
@@ -515,6 +516,12 @@ export default function WhatsAppPage() {
                 Abra o WhatsApp no seu celular, vá em Dispositivos Vinculados e escaneie o código
               </p>
             </>
+          ) : qrLoading ? (
+            <div className="flex flex-col items-center py-8 text-slate-400">
+              <Loader2 className="w-12 h-12 mb-3 animate-spin text-violet-400" />
+              <p className="text-white font-medium">Iniciando sessão...</p>
+              <p className="text-sm mt-1">Aguarde enquanto o navegador é iniciado (~20s)</p>
+            </div>
           ) : (
             <div className="flex flex-col items-center py-8 text-slate-400">
               <AlertCircle className="w-12 h-12 mb-3" />
