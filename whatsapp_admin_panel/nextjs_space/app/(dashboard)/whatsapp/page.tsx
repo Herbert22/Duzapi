@@ -135,22 +135,51 @@ export default function WhatsAppPage() {
   const fetchQrCode = useCallback(async (sessionId: string) => {
     setQrLoading(true);
     try {
-      // Start session (bridge handles idempotency if already running)
-      await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/start`, {
-        method: 'POST',
-      });
+      // Check status first — only start if not already running/waiting QR
+      const statusRes = await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/status`);
+      const statusData = statusRes.ok ? await statusRes.json() : null;
+      const currentStatus = statusData?.status;
 
-      // Poll for QR code — short initial delay, then quick retries
+      if (currentStatus === 'connected') {
+        toast.success('Sessão já está conectada!');
+        fetchData();
+        return;
+      }
+
+      // If session has QR ready, show it immediately
+      if (currentStatus === 'waiting_qr_scan' && statusData?.qrCode) {
+        setQrCode(statusData.qrCode);
+        setIsQrModalOpen(true);
+        return;
+      }
+
+      // Only start if not already in progress
+      if (currentStatus === 'not_found' || currentStatus === 'disconnected') {
+        await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/start`, {
+          method: 'POST',
+        });
+      }
+
+      // Poll for QR code — Chromium takes 15-30s on small VPS
       const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-      const maxAttempts = 15;
+      const maxAttempts = 30;
 
       for (let i = 0; i < maxAttempts; i++) {
-        await delay(i === 0 ? 500 : 1000);
+        await delay(i < 3 ? 2000 : 1500);
 
-        const response = await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/qrcode`);
+        const response = await fetch(`/api/proxy/whatsapp/sessions/${sessionId}/status`);
         if (response.ok) {
           const data = await response.json();
-          const qr = data?.qrCode || data?.qrcode || data?.base64;
+
+          // Session connected while waiting
+          if (data?.status === 'connected') {
+            toast.success('Sessão conectada!');
+            setIsQrModalOpen(false);
+            fetchData();
+            return;
+          }
+
+          const qr = data?.qrCode;
           if (qr) {
             setQrCode(qr);
             setIsQrModalOpen(true);
@@ -251,6 +280,33 @@ export default function WhatsAppPage() {
         return 'Desconectado';
     }
   };
+
+  // Auto-refresh QR while modal is open
+  useEffect(() => {
+    if (!isQrModalOpen || !selectedSession) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/proxy/whatsapp/sessions/${selectedSession}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data?.status === 'connected') {
+          toast.success('WhatsApp conectado!');
+          setIsQrModalOpen(false);
+          setQrCode(null);
+          fetchData();
+          return;
+        }
+
+        if (data?.qrCode) {
+          setQrCode(data.qrCode);
+        }
+      } catch { /* ignore */ }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [isQrModalOpen, selectedSession]);
 
   if (loading) {
     return <PageLoading />;

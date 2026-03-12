@@ -221,8 +221,8 @@ class SessionManager {
             attempts,
             urlCode,
             timestamp: new Date().toISOString(),
-            // QR expires in 2 minutes
-            expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString()
+            // QR expires in 5 minutes (WPPConnect auto-refreshes every ~20s)
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
           });
 
           logger.info('QR Code generated', { sessionId, attempts });
