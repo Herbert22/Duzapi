@@ -203,17 +203,7 @@ export default function WhatsAppPage() {
     }
     setSubmitting(true);
     try {
-      // Start the session
-      const startRes = await fetch(`/api/proxy/whatsapp/sessions/${newSessionId}/start`, {
-        method: 'POST',
-      });
-
-      if (!startRes.ok) {
-        toast.error('Erro ao iniciar sessão');
-        return;
-      }
-
-      // Map tenant if selected
+      // Map tenant first (fast operation)
       if (selectedTenantId) {
         await fetch(`/api/proxy/whatsapp/sessions/${newSessionId}/tenant`, {
           method: 'POST',
@@ -222,11 +212,17 @@ export default function WhatsAppPage() {
         });
       }
 
-      toast.success('Sessão criada! Clique em "QR Code" para conectar.');
+      // Close modal immediately — don't wait for Chromium startup
+      const sessionName = newSessionId;
       setIsNewSessionModalOpen(false);
       setNewSessionId('');
       setSelectedTenantId('');
-      fetchData();
+
+      toast.success('Sessão criada! Gerando QR Code...');
+
+      // Start session + fetch QR in background
+      setSelectedSession(sessionName);
+      fetchQrCode(sessionName);
     } catch (error) {
       toast.error('Erro ao criar sessão');
     } finally {
