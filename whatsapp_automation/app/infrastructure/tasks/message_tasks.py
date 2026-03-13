@@ -125,7 +125,7 @@ def _gemini_chat_sync(messages: list, system_prompt: str, api_key: str, model: s
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
-    model_name = model or "gemini-2.5-flash-lite"
+    model_name = model or "gemini-2.5-flash"
 
     contents = []
     for msg in messages:

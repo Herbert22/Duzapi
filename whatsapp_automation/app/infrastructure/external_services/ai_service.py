@@ -136,7 +136,7 @@ Regras:
         from google.genai import types
 
         client = self._get_gemini_client()
-        model_name = model or "gemini-2.5-flash-lite"
+        model_name = model or "gemini-2.5-flash"
 
         contents = []
         for msg in messages:
