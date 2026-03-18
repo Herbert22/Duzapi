@@ -52,6 +52,7 @@ class BotConfigCreate(BotConfigBase):
 
 class BotConfigUpdate(BaseModel):
     """Schema for updating a bot config."""
+    tenant_id: Optional[UUID] = None
     persona_name: Optional[str] = Field(None, min_length=1, max_length=100)
     system_prompt: Optional[str] = Field(None, min_length=10)
     response_delay_min: Optional[int] = Field(None, ge=0, le=60)
