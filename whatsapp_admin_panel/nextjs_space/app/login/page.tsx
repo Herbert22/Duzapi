@@ -44,7 +44,9 @@ function LoginForm() {
         const sessionRes = await fetch('/api/auth/session');
         const session = await sessionRes.json();
         const isAdmin = session?.user?.role === 'admin';
-        router.replace(plan ? `/checkout?plan=${plan}` : isAdmin ? '/admin' : '/dashboard');
+        const dest = plan ? `/checkout?plan=${plan}` : isAdmin ? '/admin' : '/dashboard';
+        // Full page load to ensure SessionProvider picks up the new session
+        window.location.href = dest;
       }
     } catch (error) {
       toast.error('Erro ao fazer login');

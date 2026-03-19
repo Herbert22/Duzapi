@@ -44,8 +44,9 @@ const adminNavigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data: session } = useSession() || {};
+  const { data: session, status } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const isAdmin = status === 'authenticated' && (session?.user as { role?: string })?.role === 'admin';
 
   return (
     <>
@@ -109,7 +110,7 @@ export function Sidebar() {
             })}
 
             {/* Admin section - visible only for admin role */}
-            {(session?.user as { role?: string })?.role === 'admin' && (
+            {isAdmin && (
               <>
                 <div className="border-t border-slate-700/50 my-4 pt-4">
                   <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Administração</p>
