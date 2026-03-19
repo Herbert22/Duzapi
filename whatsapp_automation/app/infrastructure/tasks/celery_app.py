@@ -15,7 +15,10 @@ celery_app = Celery(
     "whatsapp_automation",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.infrastructure.tasks.message_tasks"]
+    include=[
+        "app.infrastructure.tasks.message_tasks",
+        "app.infrastructure.tasks.funnel_tasks",
+    ]
 )
 
 # Celery configuration
@@ -45,6 +48,12 @@ celery_app.conf.update(
             "queue": "messages"
         },
         "app.infrastructure.tasks.message_tasks.send_whatsapp_message_task": {
+            "queue": "messages"
+        },
+        "app.infrastructure.tasks.funnel_tasks.execute_funnel_task": {
+            "queue": "messages"
+        },
+        "app.infrastructure.tasks.funnel_tasks.resume_funnel_after_wait": {
             "queue": "messages"
         }
     },
