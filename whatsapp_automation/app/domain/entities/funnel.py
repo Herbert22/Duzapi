@@ -45,11 +45,30 @@ class Funnel(Base):
         return f"<Funnel(id={self.id}, name='{self.name}', tenant_id={self.tenant_id})>"
 
     def matches_trigger(self, message_content: str) -> bool:
-        """Check if message matches any trigger keyword."""
+        """Check if message matches any trigger keyword.
+
+        Supports prefixed keywords:
+          - "exact:term"    → exact match (case-insensitive, trimmed)
+          - "contains:term" → substring match
+          - "term"          → backward compat, treated as contains
+        """
         if not self.trigger_keywords:
             return False
-        message_lower = message_content.lower()
-        return any(kw.lower() in message_lower for kw in self.trigger_keywords)
+        message_lower = message_content.lower().strip()
+        for kw in self.trigger_keywords:
+            if kw.startswith("exact:"):
+                term = kw[6:].lower().strip()
+                if term and message_lower == term:
+                    return True
+            elif kw.startswith("contains:"):
+                term = kw[9:].lower().strip()
+                if term and term in message_lower:
+                    return True
+            else:
+                # Backward compat: no prefix = contains
+                if kw.lower() in message_lower:
+                    return True
+        return False
 
 
 class FunnelNode(Base):

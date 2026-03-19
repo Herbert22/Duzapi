@@ -33,7 +33,14 @@ const NODE_CONFIG: Record<string, { icon: typeof Type; color: string; bgColor: s
 function getPreview(data: Record<string, unknown>): string {
   const type = data.nodeType as string;
   switch (type) {
-    case 'start': return 'Início do funil';
+    case 'start': {
+      const triggers = data.triggers as Array<{ condition: string; term: string }> | undefined;
+      if (triggers?.length && triggers[0]?.term) {
+        const t = triggers[0];
+        return `${t.condition === 'exact' ? 'Exata' : 'Contém'}: ${t.term.slice(0, 30)}`;
+      }
+      return 'Início do funil';
+    }
     case 'send_text': return ((data.text as string) || '').slice(0, 40) || 'Mensagem de texto';
     case 'send_image': return (data.caption as string) || 'Imagem';
     case 'send_video': return (data.caption as string) || 'Vídeo';

@@ -104,13 +104,28 @@ function FunnelEditor() {
         setKeywords(data.trigger_keywords);
         setIsActive(data.is_active);
 
+        // Convert trigger_keywords to triggers format for start node
+        const parsedTriggers = (data.trigger_keywords || []).map((kw: string) => {
+          if (kw.startsWith('exact:')) return { condition: 'exact', term: kw.slice(6) };
+          if (kw.startsWith('contains:')) return { condition: 'contains', term: kw.slice(9) };
+          return { condition: 'contains', term: kw }; // backward compat
+        });
+        const startTriggers = parsedTriggers.length > 0 ? parsedTriggers : [{ condition: 'exact', term: '' }];
+
         // Convert backend nodes to React Flow nodes
-        const rfNodes: Node[] = data.nodes.map((n) => ({
-          id: n.id,
-          type: 'funnelNode',
-          position: { x: n.position_x, y: n.position_y },
-          data: { ...n.data, nodeType: n.type, label: getNodeLabel(n.type) },
-        }));
+        const rfNodes: Node[] = data.nodes.map((n) => {
+          const nodeData = { ...n.data, nodeType: n.type, label: getNodeLabel(n.type) };
+          // Inject triggers into start node if not already present
+          if (n.type === 'start' && !n.data.triggers) {
+            nodeData.triggers = startTriggers;
+          }
+          return {
+            id: n.id,
+            type: 'funnelNode',
+            position: { x: n.position_x, y: n.position_y },
+            data: nodeData,
+          };
+        });
 
         // If no nodes, create a start node
         if (rfNodes.length === 0) {
@@ -118,7 +133,7 @@ function FunnelEditor() {
             id: crypto.randomUUID(),
             type: 'funnelNode',
             position: { x: 250, y: 50 },
-            data: { nodeType: 'start', label: 'Início' },
+            data: { nodeType: 'start', label: 'Início', triggers: startTriggers },
           });
         }
 
@@ -191,6 +206,7 @@ function FunnelEditor() {
       case 'condition': return { variable: '', conditions: [] };
       case 'tag': return { tag_name: '', action: 'add' };
       case 'ai_response': return { system_prompt: '' };
+      case 'start': return { triggers: [{ condition: 'exact', term: '' }] };
       default: return {};
     }
   };
@@ -236,8 +252,15 @@ function FunnelEditor() {
       toast.error('O funil precisa de um nó de Início');
       return;
     }
-    if (isActive && keywords.length === 0) {
-      toast.error('Funil ativo precisa de pelo menos uma palavra-chave de gatilho');
+    // Extract triggers from start node and convert to trigger_keywords
+    const startNode = nodes.find((n) => n.data.nodeType === 'start');
+    const triggers = (startNode?.data?.triggers as Array<{ condition: string; term: string }>) || [];
+    const triggerKeywords = triggers
+      .filter((t) => t.term.trim())
+      .map((t) => `${t.condition}:${t.term.trim()}`);
+
+    if (isActive && triggerKeywords.length === 0) {
+      toast.error('Funil ativo precisa de pelo menos um gatilho no nó Início');
       return;
     }
 
@@ -245,7 +268,7 @@ function FunnelEditor() {
     try {
       const payload = {
         name: funnelName,
-        trigger_keywords: keywords,
+        trigger_keywords: triggerKeywords,
         is_active: isActive,
         nodes: nodes.map((n) => ({
           id: n.id,
@@ -416,23 +439,6 @@ function FunnelEditor() {
           </Badge>
         </div>
         <div className="flex items-center gap-2">
-          {/* Keywords */}
-          <div className="flex items-center gap-1">
-            <Zap className="w-4 h-4 text-amber-400" />
-            {keywords.slice(0, 3).map((kw) => (
-              <Badge key={kw} variant="secondary" className="text-xs gap-1">
-                {kw}
-                <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setKeywords(keywords.filter(k => k !== kw))} />
-              </Badge>
-            ))}
-            <Input
-              placeholder="+ gatilho"
-              value={keywordInput}
-              onChange={(e) => setKeywordInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-              className="bg-slate-900 border-slate-700 text-white w-24 h-7 text-xs"
-            />
-          </div>
           <Button onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700">
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar
@@ -549,8 +555,59 @@ function NodePropertiesForm({
   const update = (key: string, value: unknown) => onChange({ ...data, [key]: value });
 
   switch (nodeType) {
-    case 'start':
-      return <p className="text-slate-400">O nó de início é o ponto de entrada do funil. Conecte-o ao próximo bloco.</p>;
+    case 'start': {
+      const triggers = (data.triggers as Array<{ condition: string; term: string }>) || [{ condition: 'exact', term: '' }];
+      return (
+        <div className="space-y-3">
+          {triggers.map((trigger, idx) => (
+            <div key={idx} className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-400">Condição:</label>
+                {triggers.length > 1 && (
+                  <button
+                    onClick={() => onChange({ ...data, triggers: triggers.filter((_, i) => i !== idx) })}
+                    className="text-slate-500 hover:text-red-400 text-xs"
+                  >✕</button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={trigger.condition}
+                  onChange={(e) => {
+                    const updated = [...triggers];
+                    updated[idx] = { ...trigger, condition: e.target.value };
+                    onChange({ ...data, triggers: updated });
+                  }}
+                  className="h-9 px-3 rounded-lg border border-slate-600 bg-amber-600 text-white text-sm font-medium min-w-[100px]"
+                >
+                  <option value="exact">Exata</option>
+                  <option value="contains">Contém</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400">Termo:</label>
+                <Input
+                  value={trigger.term}
+                  onChange={(e) => {
+                    const updated = [...triggers];
+                    updated[idx] = { ...trigger, term: e.target.value };
+                    onChange({ ...data, triggers: updated });
+                  }}
+                  placeholder="Ex.: Quero saber mais"
+                  className="mt-1 bg-slate-900 border-slate-700"
+                />
+              </div>
+            </div>
+          ))}
+          <button
+            onClick={() => onChange({ ...data, triggers: [...triggers, { condition: 'exact', term: '' }] })}
+            className="w-full py-2 text-sm text-amber-400 hover:text-amber-300 border border-dashed border-slate-600 rounded-xl hover:border-amber-500/50 transition-colors"
+          >
+            + Adicionar gatilho
+          </button>
+        </div>
+      );
+    }
 
     case 'send_text':
       return (
