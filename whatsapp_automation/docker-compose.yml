@@ -237,6 +237,7 @@ services:
       context: ./whatsapp_bridge
       dockerfile: Dockerfile
     container_name: wa_whatsapp_bridge
+    init: true
     restart: unless-stopped
     environment:
       NODE_ENV: "${NODE_ENV:-production}"
