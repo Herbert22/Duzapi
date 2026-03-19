@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
         billingType: 'UNDEFINED',
         value: plan.price,
         nextDueDate: nextDueDateStr,
-        cycle: plan.cycle,
+        cycle: plan.cycle as 'MONTHLY' | 'YEARLY',
         description: plan.description,
       });
       asaasSubscriptionId = asaasSub.id;
