@@ -17,8 +17,8 @@ RUN groupadd -r whatsapp && useradd -r -g whatsapp -m whatsapp \
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --omit=dev
+# Install dependencies (ci uses lock file for deterministic builds)
+RUN npm ci --omit=dev
 
 # Copy source code
 COPY . .

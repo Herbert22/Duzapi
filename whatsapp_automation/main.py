@@ -83,9 +83,9 @@ app = FastAPI(
     ### Authentication:
     Most endpoints require `X-API-Key` header with tenant's API key.
     """,
-    openapi_url=f"{settings.API_PREFIX}/openapi.json",
-    docs_url=f"{settings.API_PREFIX}/docs",
-    redoc_url=f"{settings.API_PREFIX}/redoc",
+    openapi_url=f"{settings.API_PREFIX}/openapi.json" if settings.DEBUG else None,
+    docs_url=f"{settings.API_PREFIX}/docs" if settings.DEBUG else None,
+    redoc_url=f"{settings.API_PREFIX}/redoc" if settings.DEBUG else None,
     lifespan=lifespan
 )
 

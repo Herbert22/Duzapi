@@ -75,9 +75,16 @@ class Settings(BaseSettings):
 
     @property
     def CORS_ORIGINS(self) -> List[str]:
-        if self.CORS_ORIGINS_STR.strip() == "*":
+        raw = self.CORS_ORIGINS_STR.strip()
+        if raw == "*":
+            if not self.DEBUG:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "CORS wildcard '*' is not allowed in production — falling back to empty list"
+                )
+                return []
             return ["*"]
-        return [o.strip() for o in self.CORS_ORIGINS_STR.split(",") if o.strip()]
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
     # WhatsApp Bridge (internal container URL)
     WHATSAPP_BRIDGE_URL: str = "http://whatsapp_bridge:3000"
