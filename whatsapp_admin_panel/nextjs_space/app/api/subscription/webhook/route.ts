@@ -3,13 +3,21 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Limits granted on paid subscription activation
-const PAID_MAX_TENANTS = 5;
-const PAID_MAX_MESSAGES = 10000;
-
 // Default limits for free/expired users
 const FREE_MAX_TENANTS = 1;
 const FREE_MAX_MESSAGES = 500;
+
+// Default limits for paid users (fallback if plan not found in DB)
+const DEFAULT_PAID_MAX_TENANTS = 5;
+const DEFAULT_PAID_MAX_MESSAGES = 10000;
+
+async function getPaidLimits(planSlug: string) {
+  try {
+    const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
+    if (plan) return { maxTenants: plan.maxTenants, maxMessagesPerMonth: plan.maxMessagesPerMonth };
+  } catch { /* fallback */ }
+  return { maxTenants: DEFAULT_PAID_MAX_TENANTS, maxMessagesPerMonth: DEFAULT_PAID_MAX_MESSAGES };
+}
 
 const VALID_EVENTS = [
   'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED', 'PAYMENT_OVERDUE',
@@ -67,13 +75,11 @@ export async function POST(request: NextRequest) {
             data: { status: 'active', startDate: new Date() },
           });
 
-          // Upgrade user limits on paid payment
+          // Upgrade user limits based on plan
+          const limits = await getPaidLimits(sub.plan);
           await prisma.user.update({
             where: { id: sub.userId },
-            data: {
-              maxTenants: PAID_MAX_TENANTS,
-              maxMessagesPerMonth: PAID_MAX_MESSAGES,
-            },
+            data: limits,
           });
         }
       }

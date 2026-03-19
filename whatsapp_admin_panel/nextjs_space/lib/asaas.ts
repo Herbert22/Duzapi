@@ -203,14 +203,14 @@ export async function refundPayment(paymentId: string, value?: number): Promise<
   return response.ok;
 }
 
-// Planos disponíveis
-export const PLANS = {
+// Planos hardcoded (fallback se o banco estiver vazio)
+export const PLANS_FALLBACK: Record<string, { id: string; name: string; price: number; priceInCents: number; cycle: string; description: string; features: string[]; maxTenants: number; maxMessagesPerMonth: number }> = {
   monthly: {
     id: 'monthly',
     name: 'Plano Mensal',
     price: 129.90,
     priceInCents: 12990,
-    cycle: 'MONTHLY' as const,
+    cycle: 'MONTHLY',
     description: 'Acesso completo ao WhatsApp Automation',
     features: [
       'Chatbot com IA avançada (GPT-4)',
@@ -219,13 +219,15 @@ export const PLANS = {
       'Suporte prioritário',
       'Dashboard de métricas',
     ],
+    maxTenants: 5,
+    maxMessagesPerMonth: 10000,
   },
   yearly: {
     id: 'yearly',
     name: 'Plano Anual',
     price: 1299.00,
     priceInCents: 129900,
-    cycle: 'YEARLY' as const,
+    cycle: 'YEARLY',
     description: 'Acesso completo ao WhatsApp Automation - Economia de 2 meses!',
     features: [
       'Tudo do plano mensal',
@@ -234,5 +236,36 @@ export const PLANS = {
       'Suporte VIP',
       'Configuração assistida',
     ],
+    maxTenants: 5,
+    maxMessagesPerMonth: 10000,
   },
 };
+
+// Backward-compatible alias
+export const PLANS = PLANS_FALLBACK;
+
+/** Fetch plans from database, falling back to hardcoded */
+export async function getPlansFromDB() {
+  try {
+    const { prisma } = await import('./db');
+    const plans = await prisma.plan.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
+    if (plans.length === 0) return PLANS_FALLBACK;
+    const map: Record<string, typeof PLANS_FALLBACK[string]> = {};
+    for (const p of plans) {
+      map[p.slug] = {
+        id: p.slug,
+        name: p.name,
+        price: p.priceInCents / 100,
+        priceInCents: p.priceInCents,
+        cycle: p.cycle,
+        description: p.description || '',
+        features: p.features,
+        maxTenants: p.maxTenants,
+        maxMessagesPerMonth: p.maxMessagesPerMonth,
+      };
+    }
+    return map;
+  } catch {
+    return PLANS_FALLBACK;
+  }
+}

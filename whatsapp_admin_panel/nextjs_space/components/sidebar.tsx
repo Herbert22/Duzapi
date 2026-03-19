@@ -15,6 +15,11 @@ import {
   Menu,
   X,
   ChevronRight,
+  Shield,
+  UsersRound,
+  Receipt,
+  Package,
+  Settings,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -27,6 +32,14 @@ const navigation = [
   { name: 'WhatsApp', href: '/whatsapp', icon: Smartphone },
   { name: 'Logs de Conversa', href: '/messages', icon: MessageSquare },
   { name: 'Cobrança', href: '/billing', icon: CreditCard },
+];
+
+const adminNavigation = [
+  { name: 'Painel Admin', href: '/admin', icon: Shield },
+  { name: 'Usuários', href: '/admin/users', icon: UsersRound },
+  { name: 'Assinaturas', href: '/admin/subscriptions', icon: Receipt },
+  { name: 'Planos', href: '/admin/plans', icon: Package },
+  { name: 'Configurações', href: '/admin/settings', icon: Settings },
 ];
 
 export function Sidebar() {
@@ -94,6 +107,35 @@ export function Sidebar() {
                 </Link>
               );
             })}
+
+            {/* Admin section - visible only for admin role */}
+            {(session?.user as { role?: string })?.role === 'admin' && (
+              <>
+                <div className="border-t border-slate-700/50 my-4 pt-4">
+                  <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Administração</p>
+                </div>
+                {adminNavigation.map((item) => {
+                  const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group',
+                        isActive
+                          ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/25'
+                          : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
+                      )}
+                    >
+                      <item.icon className={cn('w-5 h-5', isActive ? 'text-white' : 'text-slate-500 group-hover:text-amber-400')} />
+                      <span className="font-medium">{item.name}</span>
+                      {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                    </Link>
+                  );
+                })}
+              </>
+            )}
           </nav>
 
           {/* User section */}

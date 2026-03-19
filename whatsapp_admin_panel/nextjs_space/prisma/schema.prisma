@@ -103,3 +103,26 @@ model PasswordResetToken {
 
   @@index([email])
 }
+
+model Plan {
+  id                  String   @id @default(cuid())
+  slug                String   @unique
+  name                String
+  priceInCents        Int
+  cycle               String   // MONTHLY, YEARLY
+  description         String?
+  features            String[]
+  maxTenants          Int      @default(5)
+  maxMessagesPerMonth Int      @default(10000)
+  isActive            Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}

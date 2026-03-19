@@ -2,15 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { PLANS, createCustomer, findCustomerByEmail, createPaymentLink, createSubscription } from '@/lib/asaas';
+import { getPlansFromDB, createCustomer, findCustomerByEmail, createPaymentLink, createSubscription } from '@/lib/asaas';
 
 export const dynamic = 'force-dynamic';
 
 const TRIAL_DURATION_DAYS = 7;
-
-// Limits granted during trial and paid subscription
-const PAID_MAX_TENANTS = 5;
-const PAID_MAX_MESSAGES = 10000;
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +23,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Plano inválido' }, { status: 400 });
     }
 
-    const plan = PLANS[planId as 'monthly' | 'yearly'];
+    const allPlans = await getPlansFromDB();
+    const plan = allPlans[planId];
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
@@ -140,8 +137,8 @@ export async function POST(request: NextRequest) {
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          maxTenants: PAID_MAX_TENANTS,
-          maxMessagesPerMonth: PAID_MAX_MESSAGES,
+          maxTenants: plan.maxTenants,
+          maxMessagesPerMonth: plan.maxMessagesPerMonth,
         },
       });
     }
