@@ -71,7 +71,7 @@ export const authOptions: NextAuthOptions = {
       if (url.startsWith('/')) return `${baseUrl}${url}`;
       // Permitir redirects para o mesmo domínio
       if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+      return `${baseUrl}/dashboard`;
     },
   },
   cookies: {

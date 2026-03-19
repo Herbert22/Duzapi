@@ -40,7 +40,11 @@ function LoginForm() {
         toast.error('Email ou senha inválidos');
       } else {
         toast.success('Login realizado com sucesso!');
-        router.replace(plan ? `/checkout?plan=${plan}` : '/dashboard');
+        // Check role to redirect admin users to admin panel
+        const sessionRes = await fetch('/api/auth/session');
+        const session = await sessionRes.json();
+        const isAdmin = session?.user?.role === 'admin';
+        router.replace(plan ? `/checkout?plan=${plan}` : isAdmin ? '/admin' : '/dashboard');
       }
     } catch (error) {
       toast.error('Erro ao fazer login');

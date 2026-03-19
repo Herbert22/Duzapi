@@ -18,6 +18,8 @@ import {
   Activity,
   CalendarDays,
 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
 
@@ -67,14 +69,21 @@ interface RecentMessage {
 }
 
 export default function DashboardPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [timelinePeriod, setTimelinePeriod] = useState<TimelinePeriod>('day');
 
   useEffect(() => {
+    // Redirect admin users to admin dashboard
+    if ((session?.user as { role?: string })?.role === 'admin') {
+      router.replace('/admin');
+      return;
+    }
     fetchData();
-  }, []);
+  }, [session, router]);
 
   const fetchData = async () => {
     try {
