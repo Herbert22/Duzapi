@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         value: plan.price,
         billingType: 'UNDEFINED',
         chargeType: 'RECURRENT',
-        subscriptionCycle: plan.cycle,
+        subscriptionCycle: plan.cycle as 'MONTHLY' | 'YEARLY',
         dueDateLimitDays: 7,
       });
       paymentUrl = paymentLink.url;
