@@ -26,6 +26,7 @@ export async function verifyAdmin() {
 }
 
 /** Type guard to check if verifyAdmin returned an error response */
-export function isAdminError(result: Awaited<ReturnType<typeof verifyAdmin>>): result is NextResponse {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isAdminError(result: any): result is NextResponse {
   return result instanceof NextResponse;
 }
