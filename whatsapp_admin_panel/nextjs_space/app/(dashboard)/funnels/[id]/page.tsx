@@ -114,9 +114,9 @@ function FunnelEditor() {
 
         // Convert backend nodes to React Flow nodes
         const rfNodes: Node[] = data.nodes.map((n) => {
-          const nodeData = { ...n.data, nodeType: n.type, label: getNodeLabel(n.type) };
+          const nodeData: Record<string, unknown> = { ...n.data, nodeType: n.type, label: getNodeLabel(n.type) };
           // Inject triggers into start node if not already present
-          if (n.type === 'start' && !n.data.triggers) {
+          if (n.type === 'start' && !(n.data as Record<string, unknown>).triggers) {
             nodeData.triggers = startTriggers;
           }
           return {
