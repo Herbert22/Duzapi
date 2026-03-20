@@ -134,7 +134,7 @@ def _gemini_chat_sync(messages: list, system_prompt: str, api_key: str, model: s
 
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
-        max_output_tokens=1000,
+        max_output_tokens=2048,
         temperature=0.7,
     )
 
@@ -159,7 +159,7 @@ def _openai_chat_sync(messages: list, system_prompt: str, api_key: str, model: s
         model=model_name,
         messages=openai_messages,
         temperature=0.7,
-        max_tokens=1000,
+        max_tokens=2048,
     )
     return response.choices[0].message.content
 
