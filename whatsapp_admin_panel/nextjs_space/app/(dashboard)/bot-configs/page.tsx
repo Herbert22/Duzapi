@@ -343,10 +343,7 @@ export default function BotConfigsPage() {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
-    if (!formData.openai_api_key) {
-      toast.error('A chave da API de IA é obrigatória');
-      return;
-    }
+    // API key is optional — system falls back to GOOGLE_API_KEY from .env
     setSubmitting(true);
     try {
       const response = await fetch('/api/proxy/bot-configs', {
