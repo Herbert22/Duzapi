@@ -359,14 +359,17 @@ class SessionManager {
             this.qrCodes.delete(sessionId);
           }
           // browserClose means WPPConnect killed the browser — trigger reconnect
+          // Only reconnect if session was previously connected (has connectedAt)
           if (statusSession === 'browserClose' || statusSession === 'autocloseCalled') {
-            logger.warn('Browser closed, will attempt reconnect', { sessionId, status: statusSession });
             const session = this.sessions.get(sessionId);
-            if (session) {
+            if (session && session.connectedAt) {
+              logger.warn('Browser closed, will attempt reconnect', { sessionId, status: statusSession });
               session.isConnected = false;
               session.state = statusSession;
+              this._scheduleReconnect(sessionId);
+            } else {
+              logger.info('Browser closed for session that never connected, skipping reconnect', { sessionId, status: statusSession });
             }
-            this._scheduleReconnect(sessionId);
           }
         }
       })
