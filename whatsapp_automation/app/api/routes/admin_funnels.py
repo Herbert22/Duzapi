@@ -180,6 +180,8 @@ async def save_funnel_graph(
         raise HTTPException(status_code=404, detail="Funil não encontrado")
 
     # Update funnel metadata if provided
+    if data.tenant_id is not None:
+        funnel.tenant_id = data.tenant_id
     if data.name is not None:
         funnel.name = data.name
     if data.trigger_keywords is not None:

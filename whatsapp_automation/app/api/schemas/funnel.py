@@ -83,6 +83,7 @@ class FunnelCreate(BaseModel):
 
 
 class FunnelUpdate(BaseModel):
+    tenant_id: Optional[UUID] = None
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     trigger_keywords: Optional[List[str]] = None
     is_active: Optional[bool] = None
@@ -112,6 +113,7 @@ class FunnelDetailResponse(FunnelResponse):
 
 class FunnelSaveRequest(BaseModel):
     """Save the entire funnel graph (nodes + edges) at once."""
+    tenant_id: Optional[UUID] = None
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     trigger_keywords: Optional[List[str]] = None
     is_active: Optional[bool] = None

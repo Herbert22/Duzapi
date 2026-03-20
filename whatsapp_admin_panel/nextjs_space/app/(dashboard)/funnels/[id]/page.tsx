@@ -44,7 +44,7 @@ import {
   Zap,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { FunnelDetail, NodeType } from '@/lib/types';
+import type { FunnelDetail, NodeType, Tenant } from '@/lib/types';
 import { FunnelNodeComponent } from './funnel-node';
 
 // Node type definition for React Flow
@@ -77,6 +77,8 @@ function FunnelEditor() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
   const [isActive, setIsActive] = useState(false);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('');
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -87,6 +89,14 @@ function FunnelEditor() {
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [canvasDragOver, setCanvasDragOver] = useState(false);
+
+  // Load tenants
+  useEffect(() => {
+    fetch('/api/proxy/tenants')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setTenants(data))
+      .catch(() => {});
+  }, []);
 
   // Load funnel data
   useEffect(() => {
@@ -103,6 +113,7 @@ function FunnelEditor() {
         setFunnelName(data.name);
         setKeywords(data.trigger_keywords);
         setIsActive(data.is_active);
+        setSelectedTenantId(data.tenant_id);
 
         // Convert trigger_keywords to triggers format for start node
         const parsedTriggers = (data.trigger_keywords || []).map((kw: string) => {
@@ -267,6 +278,7 @@ function FunnelEditor() {
     setSaving(true);
     try {
       const payload = {
+        tenant_id: selectedTenantId || undefined,
         name: funnelName,
         trigger_keywords: triggerKeywords,
         is_active: isActive,
@@ -429,6 +441,18 @@ function FunnelEditor() {
             className="bg-slate-900 border-slate-700 text-white font-semibold w-64"
             placeholder="Nome do funil"
           />
+          <select
+            value={selectedTenantId}
+            onChange={(e) => setSelectedTenantId(e.target.value)}
+            className="h-9 px-3 rounded-md border border-slate-700 bg-slate-900 text-white text-sm min-w-[160px]"
+          >
+            <option value="">Selecione o tenant</option>
+            {tenants.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
           <Badge
             variant={isActive ? 'success' : 'secondary'}
             className="cursor-pointer"
