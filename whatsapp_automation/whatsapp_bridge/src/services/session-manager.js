@@ -35,6 +35,9 @@ class SessionManager {
     this.qrCodes = new Map();
     this.tenantMapping = new Map();
     this.messageHandler = new MessageHandler(this);
+    this._reconnectAttempts = new Map(); // sessionId -> attempt count
+    this._reconnectTimers = new Map();   // sessionId -> timeout handle
+    this._watchdogInterval = null;
   }
 
   // --------------------------------------------------------------------------
@@ -49,6 +52,9 @@ class SessionManager {
 
     // Restore previously-active sessions
     await this.restoreSessionsFromRedis();
+
+    // Start watchdog to detect and recover dead sessions
+    this._startWatchdog();
 
     logger.info('Session manager initialized', { sessionsPath: config.sessionsPath });
   }
@@ -199,6 +205,94 @@ class SessionManager {
   }
 
   // --------------------------------------------------------------------------
+  // Auto-reconnect with exponential backoff
+  // --------------------------------------------------------------------------
+
+  _scheduleReconnect(sessionId) {
+    // Don't stack multiple reconnect timers
+    if (this._reconnectTimers.has(sessionId)) return;
+
+    const attempts = (this._reconnectAttempts.get(sessionId) || 0) + 1;
+    this._reconnectAttempts.set(sessionId, attempts);
+
+    const MAX_ATTEMPTS = 5;
+    if (attempts > MAX_ATTEMPTS) {
+      logger.error('Max reconnect attempts reached, giving up', { sessionId, attempts });
+      this._reconnectAttempts.delete(sessionId);
+      return;
+    }
+
+    // Exponential backoff: 10s, 20s, 40s, 80s, 160s
+    const delayMs = Math.min(10000 * Math.pow(2, attempts - 1), 160000);
+    logger.info('Scheduling reconnect', { sessionId, attempt: attempts, delayMs });
+
+    const timer = setTimeout(async () => {
+      this._reconnectTimers.delete(sessionId);
+
+      // Check if session was manually reconnected in the meantime
+      const session = this.sessions.get(sessionId);
+      if (session && session.isConnected) {
+        logger.info('Session already reconnected, skipping', { sessionId });
+        this._reconnectAttempts.delete(sessionId);
+        return;
+      }
+
+      const tenantId = this.tenantMapping.get(sessionId);
+      logger.info('Attempting reconnect', { sessionId, attempt: attempts, tenantId });
+
+      try {
+        // Remove stale session entry so startSession doesn't skip it
+        this.sessions.delete(sessionId);
+        await this.startSession(sessionId, tenantId);
+        logger.info('Reconnect successful', { sessionId, attempt: attempts });
+        this._reconnectAttempts.delete(sessionId);
+      } catch (err) {
+        logger.warn('Reconnect failed', { sessionId, attempt: attempts, error: err.message });
+        this._scheduleReconnect(sessionId);
+      }
+    }, delayMs);
+
+    this._reconnectTimers.set(sessionId, timer);
+  }
+
+  _cancelReconnect(sessionId) {
+    const timer = this._reconnectTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this._reconnectTimers.delete(sessionId);
+    }
+    this._reconnectAttempts.delete(sessionId);
+  }
+
+  // --------------------------------------------------------------------------
+  // Watchdog — periodic health check for stale sessions
+  // --------------------------------------------------------------------------
+
+  _startWatchdog() {
+    const WATCHDOG_INTERVAL = 60000; // check every 60s
+    this._watchdogInterval = setInterval(async () => {
+      for (const [sessionId, session] of this.sessions) {
+        if (!session.isConnected) continue;
+        try {
+          // Probe the connection — getConnectionState throws if browser is dead
+          const state = await session.client.getConnectionState();
+          if (state !== 'CONNECTED') {
+            logger.warn('Watchdog: session not connected', { sessionId, state });
+            session.isConnected = false;
+            session.state = state;
+            this._scheduleReconnect(sessionId);
+          }
+        } catch (err) {
+          logger.warn('Watchdog: session probe failed (browser dead?)', { sessionId, error: err.message });
+          session.isConnected = false;
+          session.state = 'DEAD';
+          this._scheduleReconnect(sessionId);
+        }
+      }
+    }, WATCHDOG_INTERVAL);
+  }
+
+  // --------------------------------------------------------------------------
   // Session lifecycle
   // --------------------------------------------------------------------------
 
@@ -264,6 +358,16 @@ class SessionManager {
           if (statusSession === 'inChat' || statusSession === 'isLogged') {
             this.qrCodes.delete(sessionId);
           }
+          // browserClose means WPPConnect killed the browser — trigger reconnect
+          if (statusSession === 'browserClose' || statusSession === 'autocloseCalled') {
+            logger.warn('Browser closed, will attempt reconnect', { sessionId, status: statusSession });
+            const session = this.sessions.get(sessionId);
+            if (session) {
+              session.isConnected = false;
+              session.state = statusSession;
+            }
+            this._scheduleReconnect(sessionId);
+          }
         }
       })
       .then(async (client) => {
@@ -292,10 +396,14 @@ class SessionManager {
             session.isConnected = state === 'CONNECTED';
           }
 
-          if (state === 'CONFLICT' || state === 'UNPAIRED' || state === 'DISCONNECTED') {
-            logger.warn('Session disconnected', { sessionId, state });
-            // Mark as disconnected — won't auto-restore on next restart
+          if (state === 'CONNECTED') {
+            // Successfully connected/reconnected — reset attempts and mark as connected
+            this._cancelReconnect(sessionId);
+            try { const redis = getRedis(); await redis.hset('wpp:session_states', sessionId, 'connected'); } catch (_) {}
+          } else if (state === 'CONFLICT' || state === 'UNPAIRED' || state === 'DISCONNECTED') {
+            logger.warn('Session disconnected, scheduling reconnect', { sessionId, state });
             try { const redis = getRedis(); await redis.hset('wpp:session_states', sessionId, 'disconnected'); } catch (_) {}
+            this._scheduleReconnect(sessionId);
           }
         });
 
@@ -316,6 +424,8 @@ class SessionManager {
     const session = this.sessions.get(sessionId);
     if (!session) return { status: 'not_found', sessionId };
 
+    this._cancelReconnect(sessionId);
+
     try {
       await session.client.close();
       this.sessions.delete(sessionId);
@@ -331,6 +441,7 @@ class SessionManager {
   }
 
   async deleteSession(sessionId) {
+    this._cancelReconnect(sessionId);
     // Stop the session first if running
     const session = this.sessions.get(sessionId);
     if (session) {
