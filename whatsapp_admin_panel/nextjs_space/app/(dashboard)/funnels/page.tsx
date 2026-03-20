@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ import {
   Pause,
   Loader2,
   X,
+  BarChart3,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Funnel, Tenant } from '@/lib/types';
@@ -165,10 +167,18 @@ export default function FunnelsPage() {
             Crie fluxos de conversa automatizados para seus produtos e serviços
           </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="bg-violet-600 hover:bg-violet-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Funil
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/funnels/analytics">
+            <Button variant="outline" className="border-violet-500/50 text-violet-400 hover:bg-violet-500/10">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Analytics
+            </Button>
+          </Link>
+          <Button onClick={() => setShowCreateModal(true)} className="bg-violet-600 hover:bg-violet-700">
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Funil
+          </Button>
+        </div>
       </div>
 
       {/* Search */}

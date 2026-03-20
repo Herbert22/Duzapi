@@ -28,6 +28,7 @@ from app.admin.routes import router as admin_router
 from app.api.routes.admin_bot_configs import router as admin_bot_configs_router
 from app.api.routes.admin_messages import router as admin_messages_router
 from app.api.routes.admin_funnels import router as admin_funnels_router
+from app.api.routes.admin_funnel_analytics import router as admin_funnel_analytics_router
 from app.api.routes.admin_uploads import router as admin_uploads_router
 
 # Configure structured logging before anything else
@@ -198,6 +199,11 @@ app.include_router(
     admin_funnels_router,
     prefix=f"{settings.API_PREFIX}/admin/funnels",
     tags=["Admin Funnels"],
+)
+app.include_router(
+    admin_funnel_analytics_router,
+    prefix=f"{settings.API_PREFIX}/admin/funnels/analytics",
+    tags=["Funnel Analytics"],
 )
 app.include_router(
     admin_uploads_router,

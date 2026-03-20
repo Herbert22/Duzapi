@@ -87,6 +87,67 @@ def _delete_funnel_session(db, tenant_id: str, session_id: str):
 
 
 # ---------------------------------------------------------------------------
+# Funnel analytics logging (MongoDB — persistent, never deleted)
+# ---------------------------------------------------------------------------
+
+def _create_funnel_log(db, tenant_id: str, session_id: str, funnel_id: str,
+                       funnel_name: str, sender_phone: str):
+    """Create a persistent funnel execution log entry."""
+    doc = {
+        "_id": str(_uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "session_id": session_id,
+        "funnel_id": funnel_id,
+        "funnel_name": funnel_name,
+        "sender_phone": sender_phone,
+        "status": "in_progress",
+        "nodes_visited": [],
+        "last_node_id": None,
+        "last_node_type": None,
+        "last_node_label": None,
+        "variables": {},
+        "started_at": datetime.now(tz=timezone.utc),
+        "completed_at": None,
+        "total_nodes": 0,
+    }
+    db["funnel_logs"].insert_one(doc)
+    return doc
+
+
+def _update_funnel_log_node(db, tenant_id: str, session_id: str,
+                            node_id: str, node_type: str, node_label: str,
+                            variables: dict = None):
+    """Track node visit in funnel log."""
+    updates: dict = {
+        "last_node_id": node_id,
+        "last_node_type": node_type,
+        "last_node_label": node_label,
+        "updated_at": datetime.now(tz=timezone.utc),
+    }
+    if variables:
+        updates["variables"] = variables
+    db["funnel_logs"].update_one(
+        {"tenant_id": tenant_id, "session_id": session_id, "status": "in_progress"},
+        {
+            "$set": updates,
+            "$push": {"nodes_visited": node_type},
+            "$inc": {"total_nodes": 1},
+        },
+    )
+
+
+def _complete_funnel_log(db, tenant_id: str, session_id: str, status: str = "completed"):
+    """Mark funnel log as completed or dropped."""
+    db["funnel_logs"].update_one(
+        {"tenant_id": tenant_id, "session_id": session_id, "status": "in_progress"},
+        {"$set": {
+            "status": status,
+            "completed_at": datetime.now(tz=timezone.utc),
+        }},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Helpers: send media via Bridge (sync)
 # ---------------------------------------------------------------------------
 
@@ -275,6 +336,15 @@ def _execute_node(
     session_id = session_state["session_id"]
 
     logger.info(f"Executing node: type={node_type}, id={node_id}, session={session_id}")
+
+    # Track node visit in analytics log
+    node_label = data.get("text", data.get("question", data.get("variable", "")))
+    if isinstance(node_label, str) and len(node_label) > 50:
+        node_label = node_label[:50]
+    _update_funnel_log_node(
+        mongo_db, tenant_id, session_id, node_id, node_type,
+        node_label or node_type, session_state.get("variables"),
+    )
 
     if node_type == "start":
         next_id = _get_next_node_id(graph, node_id)
@@ -568,6 +638,8 @@ def _run_funnel_loop(
             return "waiting"
         elif result == "completed":
             logger.info(f"Funnel completed for session {session_state['session_id']}")
+            # Log completion before deleting session
+            _complete_funnel_log(mongo_db, session_state["tenant_id"], session_state["session_id"], "completed")
             _delete_funnel_session(mongo_db, session_state["tenant_id"], session_state["session_id"])
             return "completed"
 
@@ -625,10 +697,17 @@ def execute_funnel_task(
 
         # Remove any existing funnel session
         _delete_funnel_session(mongo_db, tenant_id, session_id)
+        # Mark any previous in_progress log as dropped
+        _complete_funnel_log(mongo_db, tenant_id, session_id, "dropped")
 
         # Create new session state
         session_state = _create_funnel_session(
             mongo_db, tenant_id, session_id, funnel_id, start_node_id,
+        )
+        # Create persistent analytics log
+        _create_funnel_log(
+            mongo_db, tenant_id, session_id, funnel_id,
+            graph.get("name", ""), phone,
         )
     else:
         # Resume existing session
@@ -747,6 +826,7 @@ def handle_ask_timeout(
         )
         return {"success": True, "result": result}
     else:
-        # No next node — funnel ends
+        # No next node — funnel ends (timeout = dropped)
+        _complete_funnel_log(mongo_db, tenant_id, session_id, "dropped")
         _delete_funnel_session(mongo_db, tenant_id, session_id)
         return {"success": True, "result": "completed"}
