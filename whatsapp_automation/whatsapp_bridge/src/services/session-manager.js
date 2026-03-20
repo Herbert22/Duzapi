@@ -126,7 +126,17 @@ class SessionManager {
   }
 
   async restoreSessionsFromRedis() {
-    // 1. Try Redis first
+    // 1. Get sessions that were previously connected (stored in Redis hash)
+    let connectedSessions = {};
+    try {
+      const redis = getRedis();
+      // Hash: sessionId -> "connected" | "disconnected"
+      connectedSessions = await redis.hgetall('wpp:session_states') || {};
+    } catch (err) {
+      logger.warn('Redis unavailable for session state check', { error: err.message });
+    }
+
+    // 2. Get all known session IDs from Redis set
     let sessionIds = [];
     try {
       const redis = getRedis();
@@ -135,13 +145,12 @@ class SessionManager {
       logger.warn('Redis unavailable for session restore', { error: err.message });
     }
 
-    // 2. Also discover sessions from disk (folders in sessionsPath)
+    // 3. Also discover sessions from disk (folders in sessionsPath)
     try {
       const entries = await fs.readdir(config.sessionsPath, { withFileTypes: true });
       for (const entry of entries) {
         if (entry.isDirectory() && !sessionIds.includes(entry.name)) {
           sessionIds.push(entry.name);
-          // Re-register in Redis so future restarts find it
           try {
             const redis = getRedis();
             await redis.sadd(REDIS_SESSIONS_KEY, entry.name);
@@ -154,16 +163,34 @@ class SessionManager {
 
     if (!sessionIds || sessionIds.length === 0) return;
 
-    logger.info('Restoring sessions', { count: sessionIds.length, ids: sessionIds });
+    // 4. Only auto-restore sessions that were connected before restart
+    const toRestore = sessionIds.filter(id => connectedSessions[id] === 'connected');
+    const skipped = sessionIds.filter(id => connectedSessions[id] !== 'connected');
 
-    for (const sessionId of sessionIds) {
+    if (skipped.length > 0) {
+      logger.info('Skipping disconnected sessions (lazy load)', { count: skipped.length, ids: skipped });
+    }
+
+    if (toRestore.length === 0) {
+      logger.info('No previously-connected sessions to restore');
+      return;
+    }
+
+    logger.info('Restoring only connected sessions', { count: toRestore.length, ids: toRestore });
+
+    // 5. Restore sequentially with delay to avoid memory spikes
+    for (const sessionId of toRestore) {
       const tokenPath = path.join(config.sessionsPath, sessionId);
       try {
         await fs.access(tokenPath);
         logger.info('Restoring session', { sessionId });
-        this.startSession(sessionId, this.tenantMapping.get(sessionId)).catch((err) => {
+        await this.startSession(sessionId, this.tenantMapping.get(sessionId)).catch((err) => {
           logger.warn('Failed to restore session', { sessionId, error: err.message });
         });
+        // Wait 5s between session starts to avoid memory spikes
+        if (toRestore.indexOf(sessionId) < toRestore.length - 1) {
+          await new Promise(r => setTimeout(r, 5000));
+        }
       } catch {
         logger.debug('No saved token for session, skipping restore', { sessionId });
         await this._removeSessionFromRedis(sessionId);
@@ -248,6 +275,8 @@ class SessionManager {
 
         // Persist to Redis so it survives restart
         await this._persistSessionToRedis(sessionId);
+        // Track connection state for lazy restore
+        try { const redis = getRedis(); await redis.hset('wpp:session_states', sessionId, 'connected'); } catch (_) {}
 
         // Incoming message listener
         client.onMessage(async (message) => {
@@ -264,12 +293,9 @@ class SessionManager {
           }
 
           if (state === 'CONFLICT' || state === 'UNPAIRED' || state === 'DISCONNECTED') {
-            logger.warn('Session disconnected, scheduling reconnect', { sessionId, state });
-            setTimeout(() => {
-              this.startSession(sessionId, this.tenantMapping.get(sessionId)).catch((err) => {
-                logger.error('Auto-reconnect failed', { sessionId, error: err.message });
-              });
-            }, 30000); // retry after 30s
+            logger.warn('Session disconnected', { sessionId, state });
+            // Mark as disconnected — won't auto-restore on next restart
+            try { const redis = getRedis(); await redis.hset('wpp:session_states', sessionId, 'disconnected'); } catch (_) {}
           }
         });
 
@@ -295,6 +321,7 @@ class SessionManager {
       this.sessions.delete(sessionId);
       this.qrCodes.delete(sessionId);
       await this._removeSessionFromRedis(sessionId);
+      try { const redis = getRedis(); await redis.hset('wpp:session_states', sessionId, 'disconnected'); } catch (_) {}
       logger.info('Session stopped', { sessionId });
       return { status: 'stopped', sessionId };
     } catch (error) {
