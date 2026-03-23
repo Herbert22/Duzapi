@@ -55,6 +55,9 @@ celery_app.conf.update(
         },
         "app.infrastructure.tasks.funnel_tasks.resume_funnel_after_wait": {
             "queue": "messages"
+        },
+        "app.infrastructure.tasks.funnel_tasks.handle_ask_timeout": {
+            "queue": "messages"
         }
     },
     
