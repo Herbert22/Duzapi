@@ -120,12 +120,25 @@ def _generate_ai_response_sync(
         return "Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente."
 
 
+def _strip_emojis(text: str) -> str:
+    """Remove emoji characters that break latin-1 encoding in HTTP headers."""
+    import re
+    emoji_pattern = re.compile(
+        "[\U00010000-\U0010ffff]",  # supplementary multilingual plane (emojis)
+        flags=re.UNICODE,
+    )
+    return emoji_pattern.sub("", text)
+
+
 def _gemini_chat_sync(messages: list, system_prompt: str, api_key: str, model: str = None) -> str:
     from google import genai
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
     model_name = model or "gemini-2.5-flash"
+
+    # Sanitize system prompt — emojis break google-genai's HTTP encoding
+    system_prompt = _strip_emojis(system_prompt)
 
     contents = []
     for msg in messages:

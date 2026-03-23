@@ -762,15 +762,29 @@ function NodePropertiesForm({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Timeout (segundos)
-            </label>
-            <Input
-              type="number"
-              value={(data.timeout_seconds as number) || 300}
-              onChange={(e) => update('timeout_seconds', parseInt(e.target.value) || 300)}
-              className="bg-slate-800 border-slate-700 text-white"
-            />
+            <div className="flex items-center gap-2 mb-1">
+              <input
+                type="checkbox"
+                id="timeout_enabled"
+                checked={((data.timeout_seconds as number) ?? 300) > 0}
+                onChange={(e) => update('timeout_seconds', e.target.checked ? 300 : 0)}
+                className="rounded border-slate-600 bg-slate-800 text-violet-600 focus:ring-violet-500"
+              />
+              <label htmlFor="timeout_enabled" className="text-sm font-medium text-slate-300">
+                Timeout (segundos)
+              </label>
+            </div>
+            {((data.timeout_seconds as number) ?? 300) > 0 && (
+              <Input
+                type="number"
+                value={(data.timeout_seconds as number) || 300}
+                onChange={(e) => update('timeout_seconds', parseInt(e.target.value) || 300)}
+                className="bg-slate-800 border-slate-700 text-white"
+              />
+            )}
+            {((data.timeout_seconds as number) ?? 300) === 0 && (
+              <p className="text-xs text-slate-500">O bot vai esperar indefinidamente pela resposta</p>
+            )}
           </div>
         </>
       );
