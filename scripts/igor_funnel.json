@@ -1,0 +1,103 @@
+{
+  "nodes": [
+    {
+      "id": "10000000-0000-0000-0000-000000000001",
+      "type": "start",
+      "data": {"triggers": [{"condition": "contains", "term": "cirurgias reparadoras"}, {"condition": "contains", "term": "pós-bariátrica"}, {"condition": "contains", "term": "pos-bariatrica"}, {"condition": "contains", "term": "saber mais sobre cirurgias"}, {"condition": "contains", "term": "cirurgia reparadora"}]},
+      "position_x": 250, "position_y": 0
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000002",
+      "type": "send_text",
+      "data": {"text": "{saudacao}, tudo bem? Muito obrigado pelo seu contato! \ud83d\ude4c\n\nPara que eu possa te orientar da melhor forma sobre as cirurgias plásticas reparadoras pós-bariátrica, você poderia me informar se possui plano de saúde ou se depende do SUS?"},
+      "position_x": 250, "position_y": 120
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000003",
+      "type": "ask",
+      "data": {"question": "", "variable": "plano_saude", "timeout_seconds": 600},
+      "position_x": 250, "position_y": 240
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000004",
+      "type": "condition",
+      "data": {"variable": "plano_saude", "conditions": [{"operator": "contains", "value": "sus", "edge_label": "sus"}, {"operator": "contains", "value": "não tenho", "edge_label": "sus"}, {"operator": "contains", "value": "nao tenho", "edge_label": "sus"}, {"operator": "contains", "value": "público", "edge_label": "sus"}, {"operator": "contains", "value": "publico", "edge_label": "sus"}, {"operator": "contains", "value": "não possuo", "edge_label": "sus"}, {"operator": "contains", "value": "nao possuo", "edge_label": "sus"}]},
+      "position_x": 250, "position_y": 360
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000010",
+      "type": "send_text",
+      "data": {"text": "Entendi \ud83d\udc99\n\nHoje nossa atuação é focada em casos com plano de saúde, onde conseguimos resultados mais rápidos.\n\nNo SUS, o primeiro passo é sempre pela rede pública (posto ou Secretaria de Saúde), pois os critérios variam de cidade para cidade.\n\n\ud83d\udc49 Porém, se você já solicitou a cirurgia e está aguardando há mais de 8 meses, pode existir uma demora excessiva — e nesse caso conseguimos atuar judicialmente para acelerar o procedimento.\n\nSe for a sua situação, me avisa que te explico como funciona \ud83d\ude0a"},
+      "position_x": 0, "position_y": 500
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000011",
+      "type": "tag",
+      "data": {"tag_name": "sem_plano_sus", "action": "add"},
+      "position_x": 0, "position_y": 620
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000020",
+      "type": "send_text",
+      "data": {"text": "Perfeito! E você chegou a fazer a bariátrica ou emagreceu de outra forma? Me conta um pouquinho de como foi esse processo pra você:\n\nQuando você realizou a cirurgia?\n\nQuanto peso conseguiu eliminar ao longo do processo?"},
+      "position_x": 500, "position_y": 500
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000021",
+      "type": "ask",
+      "data": {"question": "", "variable": "historico_bariatrica", "timeout_seconds": 600},
+      "position_x": 500, "position_y": 620
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000022",
+      "type": "send_text",
+      "data": {"text": "Parabéns pela sua jornada! \ud83d\udc4f\ud83c\udffb\nPassar por um processo de transformação exige muita coragem e disciplina — e isso já mostra o quanto você é forte! \ud83d\udcaa\n\nAgora me conta: você percebeu sobras de pele ou flacidez em alguma região do corpo? Tipo braços, abdômen, seios, costas, pernas...? Quais gostaria de reparar?"},
+      "position_x": 500, "position_y": 740
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000023",
+      "type": "ask",
+      "data": {"question": "", "variable": "regioes_corpo", "timeout_seconds": 600},
+      "position_x": 500, "position_y": 860
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000024",
+      "type": "send_text",
+      "data": {"text": "É possível sim conseguir as cirurgias reparadoras para todas essas regiões, inclusive com colocação de prótese mamária, caso haja indicação médica.\n\nPra gente analisar direitinho o seu caso e ver como garantir esse direito, te convido pra uma videochamada 100% gratuita e com total privacidade com o Dr. Igor, especialista nesses pedidos.\n\nNessa conversa, vamos:\n\u2705 Ver se você já tem indicação médica (ou te orientar sobre como conseguir)\n\u2705 Avaliar quais cirurgias podem ser incluídas no pedido\n\u2705 Explicar todo o processo com o plano de saúde\n\u2705 Esclarecer prazos, documentos e tirar todas as suas dúvidas\n\nMe diz se prefere ser atendida de manhã ou à tarde, que já agendo seu horário exclusivo. \u2764\ufe0f\ud83d\udcf2"},
+      "position_x": 500, "position_y": 980
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000025",
+      "type": "ask",
+      "data": {"question": "", "variable": "horario_preferido", "timeout_seconds": 600},
+      "position_x": 500, "position_y": 1100
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000026",
+      "type": "tag",
+      "data": {"tag_name": "lead_qualificado", "action": "add"},
+      "position_x": 500, "position_y": 1220
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000027",
+      "type": "send_text",
+      "data": {"text": "Perfeito! Vou agendar sua videochamada com o Dr. Igor no período da {horario_preferido}. \ud83d\udcc5\n\nEm breve entraremos em contato para confirmar o dia e horário exatos.\n\nQualquer dúvida, estou à disposição! \ud83d\ude0a"},
+      "position_x": 500, "position_y": 1340
+    }
+  ],
+  "edges": [
+    {"source_node_id": "10000000-0000-0000-0000-000000000001", "target_node_id": "10000000-0000-0000-0000-000000000002", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000002", "target_node_id": "10000000-0000-0000-0000-000000000003", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000003", "target_node_id": "10000000-0000-0000-0000-000000000004", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000004", "target_node_id": "10000000-0000-0000-0000-000000000010", "condition_label": "sus", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000004", "target_node_id": "10000000-0000-0000-0000-000000000020", "sort_order": 1},
+    {"source_node_id": "10000000-0000-0000-0000-000000000010", "target_node_id": "10000000-0000-0000-0000-000000000011", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000020", "target_node_id": "10000000-0000-0000-0000-000000000021", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000021", "target_node_id": "10000000-0000-0000-0000-000000000022", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000022", "target_node_id": "10000000-0000-0000-0000-000000000023", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000023", "target_node_id": "10000000-0000-0000-0000-000000000024", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000024", "target_node_id": "10000000-0000-0000-0000-000000000025", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000025", "target_node_id": "10000000-0000-0000-0000-000000000026", "sort_order": 0},
+    {"source_node_id": "10000000-0000-0000-0000-000000000026", "target_node_id": "10000000-0000-0000-0000-000000000027", "sort_order": 0}
+  ]
+}

@@ -50,6 +50,16 @@ def _get_funnel_session(db, tenant_id: str, session_id: str) -> Optional[dict]:
     })
 
 
+def _get_saudacao() -> str:
+    """Return greeting based on current hour in Brazil (UTC-3)."""
+    hora_brasil = (datetime.now(tz=timezone.utc) + timedelta(hours=-3)).hour
+    if hora_brasil < 12:
+        return "Bom dia"
+    elif hora_brasil < 18:
+        return "Boa tarde"
+    return "Boa noite"
+
+
 def _create_funnel_session(db, tenant_id: str, session_id: str, funnel_id: str, start_node_id: str) -> dict:
     """Create a new funnel session."""
     doc = {
@@ -58,7 +68,7 @@ def _create_funnel_session(db, tenant_id: str, session_id: str, funnel_id: str, 
         "session_id": session_id,
         "funnel_id": funnel_id,
         "current_node_id": start_node_id,
-        "variables": {},
+        "variables": {"saudacao": _get_saudacao()},
         "tags": [],
         "waiting_for_input": False,
         "wait_until": None,
