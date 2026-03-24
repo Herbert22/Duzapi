@@ -128,6 +128,10 @@ class MessageHandler {
           });
           return;
 
+        case 'ciphertext':
+          webhookPayload = await this.retryCiphertext(sessionId, tenantId, message);
+          break;
+
         default:
           logger.debug('Unsupported message type', { sessionId, type: message.type });
           return;
@@ -144,6 +148,45 @@ class MessageHandler {
         stack: error.stack
       });
     }
+  }
+
+  /**
+   * Retry ciphertext — wait for WhatsApp to decrypt, then re-fetch the message.
+   * Returns a webhook payload if decryption succeeds, or null if it fails.
+   */
+  async retryCiphertext(sessionId, tenantId, message) {
+    const session = this.sessionManager.sessions.get(sessionId);
+    if (!session || !session.client) {
+      logger.warn('Cannot retry ciphertext: session not available', { sessionId, messageId: message.id });
+      return null;
+    }
+
+    const delays = [10000, 30000, 60000]; // retry after 10s, 30s, 60s
+    for (const delay of delays) {
+      await new Promise(r => setTimeout(r, delay));
+      try {
+        const decrypted = await session.client.getMessageById(message.id);
+        if (decrypted && decrypted.type === 'chat' && decrypted.body) {
+          logger.info('Ciphertext decrypted successfully', {
+            sessionId, from: message.from, attempt: delays.indexOf(delay) + 1
+          });
+          return this.processTextMessage(sessionId, tenantId, decrypted);
+        }
+        if (decrypted && (decrypted.type === 'ptt' || decrypted.type === 'audio')) {
+          logger.info('Ciphertext decrypted as audio', {
+            sessionId, from: message.from, attempt: delays.indexOf(delay) + 1
+          });
+          return await this.processAudioMessage(sessionId, tenantId, decrypted);
+        }
+      } catch (err) {
+        logger.debug('Ciphertext retry failed', { sessionId, attempt: delays.indexOf(delay) + 1, error: err.message });
+      }
+    }
+
+    logger.warn('Could not decrypt ciphertext after retries', {
+      sessionId, from: message.from, messageId: message.id
+    });
+    return null;
   }
 
   /**
