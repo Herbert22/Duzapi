@@ -77,11 +77,6 @@ export default function DashboardPage() {
   const [timelinePeriod, setTimelinePeriod] = useState<TimelinePeriod>('day');
 
   useEffect(() => {
-    // Redirect admin users to admin dashboard
-    if ((session?.user as { role?: string })?.role === 'admin') {
-      router.replace('/admin');
-      return;
-    }
     fetchData();
   }, [session, router]);
 

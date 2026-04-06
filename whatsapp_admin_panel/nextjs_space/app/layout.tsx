@@ -13,8 +13,8 @@ export const metadata: Metadata = {
     default: 'DuzAPI — Automatize seu WhatsApp com IA',
     template: '%s | DuzAPI',
   },
-  description: 'Automatize seu atendimento no WhatsApp com inteligência artificial. Chatbot com GPT-4, multi-atendimento, dashboard de métricas e muito mais.',
-  keywords: ['whatsapp', 'chatbot', 'automação', 'inteligência artificial', 'GPT-4', 'atendimento automático', 'SaaS'],
+  description: 'Automatize seu atendimento no WhatsApp com inteligência artificial. Chatbot com IA, multi-atendimento, dashboard de métricas e muito mais.',
+  keywords: ['whatsapp', 'chatbot', 'automação', 'inteligência artificial', 'atendimento automático', 'SaaS'],
   authors: [{ name: 'DuzAPI' }],
   icons: {
     icon: '/favicon.svg',
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'DuzAPI — Automatize seu WhatsApp com IA',
-    description: 'Chatbot inteligente com GPT-4 para WhatsApp. Aumente suas vendas com atendimento 24/7.',
+    description: 'Chatbot inteligente com IA para WhatsApp. Aumente suas vendas com atendimento 24/7.',
     siteName: 'DuzAPI',
     locale: 'pt_BR',
     type: 'website',
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'DuzAPI — Automatize seu WhatsApp com IA',
-    description: 'Chatbot inteligente com GPT-4 para WhatsApp. Aumente suas vendas com atendimento 24/7.',
+    description: 'Chatbot inteligente com IA para WhatsApp. Aumente suas vendas com atendimento 24/7.',
   },
   robots: {
     index: true,

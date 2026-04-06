@@ -415,4 +415,54 @@ router.get('/audio/:filename', requireAuth, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Resolve @lid to real phone numbers (batch)
+// ---------------------------------------------------------------------------
+router.post('/:sessionId/resolve-phones', requireAuth, async (req, res) => {
+  const { sessionId } = req.params;
+  const { lids } = req.body;
+
+  if (!Array.isArray(lids) || lids.length === 0) {
+    return res.status(400).json({ success: false, error: 'lids array required' });
+  }
+
+  const session = sessionManager.sessions.get(sessionId);
+  if (!session || !session.client) {
+    return res.status(400).json({ success: false, error: 'Session not connected' });
+  }
+
+  const results = {};
+  for (const lid of lids.slice(0, 100)) {
+    try {
+      const contact = await session.client.getContact(lid);
+      // Try multiple fields to find the real phone number
+      let phone = null;
+      if (contact) {
+        // Check verifiedName, number, or userid fields
+        phone = contact.number || contact.verifiedName || null;
+        // If contact has a linked @c.us id, that's the real phone
+        if (!phone && contact.id && contact.id._serialized && contact.id._serialized.includes('@c.us')) {
+          phone = contact.id._serialized.replace('@c.us', '');
+        }
+        // Try getChat which may have more info
+        if (!phone) {
+          try {
+            const chat = await session.client.getChatById(lid);
+            if (chat && chat.contact && chat.contact.number) {
+              phone = chat.contact.number;
+            }
+          } catch { /* ignore */ }
+        }
+      }
+      if (phone && phone !== lid.replace('@lid', '')) {
+        results[lid] = phone;
+      }
+    } catch {
+      // skip unresolvable
+    }
+  }
+
+  res.json({ success: true, resolved: results, total: Object.keys(results).length });
+});
+
 module.exports = router;

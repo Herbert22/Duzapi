@@ -213,7 +213,7 @@ export const PLANS_FALLBACK: Record<string, { id: string; name: string; price: n
     cycle: 'MONTHLY',
     description: 'Acesso completo ao WhatsApp Automation',
     features: [
-      'Chatbot com IA avançada (GPT-4)',
+      'Chatbot com IA avançada',
       'Até 5 instâncias WhatsApp',
       'Até 10.000 mensagens/mês',
       'Suporte prioritário',

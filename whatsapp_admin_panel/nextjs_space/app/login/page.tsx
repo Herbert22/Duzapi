@@ -40,11 +40,7 @@ function LoginForm() {
         toast.error('Email ou senha inválidos');
       } else {
         toast.success('Login realizado com sucesso!');
-        // Check role to redirect admin users to admin panel
-        const sessionRes = await fetch('/api/auth/session');
-        const session = await sessionRes.json();
-        const isAdmin = session?.user?.role === 'admin';
-        const dest = plan ? `/checkout?plan=${plan}` : isAdmin ? '/admin' : '/dashboard';
+        const dest = plan ? `/checkout?plan=${plan}` : '/dashboard';
         // Full page load to ensure SessionProvider picks up the new session
         window.location.href = dest;
       }

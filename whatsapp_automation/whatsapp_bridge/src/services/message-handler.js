@@ -138,6 +138,13 @@ class MessageHandler {
       }
 
       if (webhookPayload) {
+        // Resolve real phone number when sender is a @lid
+        if (message.from && message.from.endsWith('@lid')) {
+          const realPhone = await this.resolvePhoneFromLid(sessionId, message.from);
+          if (realPhone) {
+            webhookPayload.sender_phone_number = realPhone;
+          }
+        }
         await this.sendWebhook(webhookPayload);
       }
 
@@ -288,6 +295,31 @@ class MessageHandler {
    */
   extractPhoneNumber(whatsappId) {
     return whatsappId.replace('@c.us', '').replace('@s.whatsapp.net', '');
+  }
+
+  /**
+   * Resolve the real phone number from a @lid WhatsApp ID using WPPConnect.
+   * Returns the phone number string or null if resolution fails.
+   */
+  async resolvePhoneFromLid(sessionId, lidId) {
+    try {
+      const session = this.sessionManager.sessions.get(sessionId);
+      if (!session || !session.client) return null;
+
+      // WPPConnect getContact returns contact info including the real number
+      const contact = await session.client.getContact(lidId);
+      if (contact && contact.id && contact.id.user) {
+        return contact.id.user;
+      }
+      // Fallback: try getNumberProfile
+      const profile = await session.client.getNumberProfile(lidId);
+      if (profile && profile.id && profile.id.user) {
+        return profile.id.user;
+      }
+    } catch (err) {
+      logger.debug('Could not resolve phone from LID', { sessionId, lidId, error: err.message });
+    }
+    return null;
   }
 
   /**

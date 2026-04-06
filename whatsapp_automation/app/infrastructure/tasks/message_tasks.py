@@ -143,7 +143,8 @@ def _gemini_chat_sync(messages: list, system_prompt: str, api_key: str, model: s
     contents = []
     for msg in messages:
         role = "model" if msg["role"] == "assistant" else "user"
-        contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
+        safe_text = _strip_emojis(msg["content"])
+        contents.append(types.Content(role=role, parts=[types.Part(text=safe_text)]))
 
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,

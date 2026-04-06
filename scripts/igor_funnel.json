@@ -15,7 +15,7 @@
     {
       "id": "10000000-0000-0000-0000-000000000003",
       "type": "ask",
-      "data": {"question": "", "variable": "plano_saude", "timeout_seconds": 600},
+      "data": {"question": "", "variable": "plano_saude", "timeout_seconds": 0},
       "position_x": 250, "position_y": 240
     },
     {
@@ -45,7 +45,7 @@
     {
       "id": "10000000-0000-0000-0000-000000000021",
       "type": "ask",
-      "data": {"question": "", "variable": "historico_bariatrica", "timeout_seconds": 600},
+      "data": {"question": "", "variable": "historico_bariatrica", "timeout_seconds": 0},
       "position_x": 500, "position_y": 620
     },
     {
@@ -57,7 +57,7 @@
     {
       "id": "10000000-0000-0000-0000-000000000023",
       "type": "ask",
-      "data": {"question": "", "variable": "regioes_corpo", "timeout_seconds": 600},
+      "data": {"question": "", "variable": "regioes_corpo", "timeout_seconds": 0},
       "position_x": 500, "position_y": 860
     },
     {
@@ -69,7 +69,7 @@
     {
       "id": "10000000-0000-0000-0000-000000000025",
       "type": "ask",
-      "data": {"question": "", "variable": "horario_preferido", "timeout_seconds": 600},
+      "data": {"question": "", "variable": "horario_preferido", "timeout_seconds": 0},
       "position_x": 500, "position_y": 1100
     },
     {

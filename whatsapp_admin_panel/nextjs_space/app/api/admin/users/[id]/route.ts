@@ -48,7 +48,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   try {
     const body = await request.json();
-    const { name, role, maxTenants, maxMessagesPerMonth } = body;
+    const { name, role, maxTenants, maxMessagesPerMonth, subscriptionStatus } = body;
 
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
@@ -61,6 +61,31 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       data,
       select: { id: true, name: true, email: true, role: true, maxTenants: true, maxMessagesPerMonth: true },
     });
+
+    // Update or create subscription status
+    if (subscriptionStatus) {
+      const existing = await prisma.subscription.findFirst({
+        where: { userId: params.id },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (existing) {
+        await prisma.subscription.update({
+          where: { id: existing.id },
+          data: { status: subscriptionStatus },
+        });
+      } else {
+        await prisma.subscription.create({
+          data: {
+            userId: params.id,
+            plan: 'manual',
+            status: subscriptionStatus,
+            priceInCents: 0,
+            startDate: new Date(),
+          },
+        });
+      }
+    }
 
     return NextResponse.json(user);
   } catch {

@@ -182,6 +182,27 @@ def _send_text(session_name: str, phone: str, text: str) -> bool:
         return False
 
 
+def _log_bot_message(mongo_db, tenant_id: str, session_id: str, content: str, message_type: str = "text"):
+    """Log a bot-sent message to message_logs so it appears in the conversation log."""
+    if mongo_db is None:
+        return
+    mongo_db["message_logs"].insert_one({
+        "_id": str(_uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "session_id": session_id,
+        "sender_phone": "",
+        "message_type": message_type,
+        "content": content,
+        "transcription": None,
+        "ai_response": None,
+        "processed_at": datetime.now(tz=timezone.utc),
+        "response_sent_at": None,
+        "message_id": None,
+        "is_from_me": True,
+        "error": None,
+    })
+
+
 def _send_media(session_name: str, phone: str, media_type: str, media_base64: str,
                 mime_type: str, caption: str = "", filename: str = "") -> bool:
     """Send image, video, or document via bridge."""
@@ -368,6 +389,7 @@ def _execute_node(
         if text:
             text = _substitute_variables(text, session_state.get("variables", {}))
             _send_text(session_name, phone, text)
+            _log_bot_message(mongo_db, tenant_id, session_id, text)
         next_id = _get_next_node_id(graph, node_id)
         if next_id:
             _update_funnel_session(mongo_db, tenant_id, session_id, {"current_node_id": next_id})
@@ -439,6 +461,7 @@ def _execute_node(
         if question:
             question = _substitute_variables(question, session_state.get("variables", {}))
             _send_text(session_name, phone, question)
+            _log_bot_message(mongo_db, tenant_id, session_id, question)
 
         timeout_seconds = data.get("timeout_seconds", 300)
         _update_funnel_session(mongo_db, tenant_id, session_id, {
@@ -447,12 +470,19 @@ def _execute_node(
             "ask_timeout_seconds": timeout_seconds,
         })
 
-        # Schedule timeout: if user doesn't respond, auto-advance
+        # Schedule timeout: if user doesn't respond, end funnel
         if timeout_seconds and timeout_seconds > 0:
             timeout_at = datetime.now(tz=timezone.utc) + timedelta(seconds=timeout_seconds)
             handle_ask_timeout.apply_async(
                 args=[tenant_id, session_id, session_name, phone, node_id],
                 eta=timeout_at,
+            )
+        else:
+            # No timeout configured: schedule 24h soft-drop (marks as dropped but keeps session)
+            soft_drop_at = datetime.now(tz=timezone.utc) + timedelta(hours=24)
+            mark_funnel_dropped.apply_async(
+                args=[tenant_id, session_id, node_id],
+                eta=soft_drop_at,
             )
 
         return "waiting"
@@ -726,6 +756,12 @@ def execute_funnel_task(
             logger.error(f"No funnel session to resume: {session_id}")
             return {"success": False, "error": "no_session"}
 
+        # Reactivate funnel_log if it was soft-dropped or in reengagement
+        mongo_db["funnel_logs"].update_one(
+            {"tenant_id": tenant_id, "session_id": session_id, "status": {"$in": ["dropped", "reengagement"]}},
+            {"$set": {"status": "in_progress", "completed_at": None}},
+        )
+
         # If was waiting for input (ask node), store the answer
         if session_state.get("waiting_for_input") and user_input:
             variable = session_state.get("ask_variable", "")
@@ -816,27 +852,37 @@ def handle_ask_timeout(
         logger.info("Funnel moved past this ask node, timeout ignored")
         return {"success": False, "reason": "node_changed"}
 
-    # Timeout: advance to next node (skip the ask)
-    _update_funnel_session(mongo_db, tenant_id, session_id, {
-        "waiting_for_input": False,
-    })
+    # Timeout: mark as dropped and end the funnel (hard timeout — session deleted)
+    _complete_funnel_log(mongo_db, tenant_id, session_id, "dropped")
+    _delete_funnel_session(mongo_db, tenant_id, session_id)
+    return {"success": True, "result": "dropped"}
 
-    graph = _load_funnel_graph(session_state["funnel_id"])
-    if not graph:
-        return {"success": False, "error": "funnel_not_found"}
 
-    next_id = _get_next_node_id(graph, ask_node_id)
-    if next_id:
-        _update_funnel_session(mongo_db, tenant_id, session_id, {"current_node_id": next_id})
-        session_state["current_node_id"] = next_id
-        session_state["waiting_for_input"] = False
+@celery_app.task(bind=True, max_retries=1)
+def mark_funnel_dropped(
+    self,
+    tenant_id: str,
+    session_id: str,
+    ask_node_id: str,
+):
+    """Soft-drop: mark funnel as dropped after 24h but KEEP the session.
+    If the client responds later, the funnel resumes normally."""
+    logger.info(f"Soft-drop check: session={session_id}")
 
-        result = _run_funnel_loop(
-            graph, session_state, session_name, phone, mongo_db=mongo_db,
-        )
-        return {"success": True, "result": result}
-    else:
-        # No next node — funnel ends (timeout = dropped)
-        _complete_funnel_log(mongo_db, tenant_id, session_id, "dropped")
-        _delete_funnel_session(mongo_db, tenant_id, session_id)
-        return {"success": True, "result": "completed"}
+    mongo_db = _get_sync_mongo_db()
+    session_state = _get_funnel_session(mongo_db, tenant_id, session_id)
+
+    if not session_state:
+        return {"success": False, "reason": "session_gone"}
+
+    # Only act if still waiting on the same ask node
+    if not session_state.get("waiting_for_input"):
+        return {"success": False, "reason": "already_responded"}
+
+    if session_state.get("current_node_id") != ask_node_id:
+        return {"success": False, "reason": "node_changed"}
+
+    # Mark as dropped in analytics only — do NOT delete the session
+    _complete_funnel_log(mongo_db, tenant_id, session_id, "dropped")
+    logger.info(f"Funnel soft-dropped (24h): session={session_id}")
+    return {"success": True, "result": "soft_dropped"}

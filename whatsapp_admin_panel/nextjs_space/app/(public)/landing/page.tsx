@@ -25,7 +25,7 @@ export default function LandingPage() {
     {
       icon: Bot,
       title: 'IA Avançada',
-      description: 'Chatbot inteligente com GPT-4 que entende contexto e responde naturalmente.',
+      description: 'Chatbot inteligente que entende contexto e responde naturalmente.',
     },
     {
       icon: MessageSquare,
@@ -92,7 +92,7 @@ export default function LandingPage() {
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-500/20 mb-6">
               <Sparkles className="w-4 h-4 text-violet-400" />
-              <span className="text-violet-300 text-sm">Desenvolvido com GPT-4</span>
+              <span className="text-violet-300 text-sm">Desenvolvido com Inteligência Artificial</span>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
               Automatize seu WhatsApp com{' '}

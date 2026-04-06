@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { BarChart3, Users, CheckCircle, XCircle, Clock, TrendingUp, Loader2, ArrowLeft, Phone } from 'lucide-react';
+import { BarChart3, Users, CheckCircle, XCircle, Clock, TrendingUp, Loader2, ArrowLeft, Phone, Copy, Send } from 'lucide-react';
+import { Modal } from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -22,6 +24,7 @@ interface Summary {
 interface Contact {
   id: string;
   sender_phone: string;
+  sender_phone_lid?: string | null;
   funnel_name: string;
   funnel_id: string;
   status: string;
@@ -43,6 +46,11 @@ export default function FunnelAnalyticsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingContacts, setLoadingContacts] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetch('/api/proxy/funnels/analytics/summary')
@@ -70,18 +78,20 @@ export default function FunnelAnalyticsPage() {
     }
   }, [page, statusFilter]);
 
-  useEffect(() => { fetchContacts(); }, [fetchContacts]);
+  useEffect(() => { fetchContacts(); setSelectedIds(new Set()); }, [fetchContacts]);
 
   const statusColors: Record<string, string> = {
     completed: 'bg-green-500/20 text-green-400',
     dropped: 'bg-red-500/20 text-red-400',
     in_progress: 'bg-amber-500/20 text-amber-400',
+    reengagement: 'bg-blue-500/20 text-blue-400',
   };
 
   const statusLabels: Record<string, string> = {
     completed: 'Completou',
     dropped: 'Abandonou',
     in_progress: 'Em andamento',
+    reengagement: 'Reengajamento',
   };
 
   const formatPhone = (phone: string) => {
@@ -91,6 +101,60 @@ export default function FunnelAnalyticsPage() {
     if (digits.length === 13) return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
     if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
     return phone;
+  };
+
+  const copyPhone = (e: React.MouseEvent, phone: string) => {
+    e.stopPropagation();
+    const digits = phone.replace(/\D/g, '');
+    navigator.clipboard.writeText(digits);
+    toast.success('Numero copiado!');
+  };
+
+  const toggleSelect = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === contacts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(contacts.map((c) => c.id)));
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageText.trim()) { toast.error('Digite uma mensagem'); return; }
+    setSending(true);
+    try {
+      const res = await fetch('/api/proxy/funnels/analytics/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_ids: Array.from(selectedIds), message: messageText }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.sent > 0) {
+          toast.success(`${data.sent} mensagem(ns) enviada(s)${data.failed ? `, ${data.failed} falhou` : ''}`);
+        } else if (data.failed > 0) {
+          const reason = data.errors?.[0] || 'Erro desconhecido';
+          toast.error(`${data.failed} mensagem(ns) falhou: ${reason}`);
+        }
+        setShowMessageModal(false);
+        setMessageText('');
+        setSelectedIds(new Set());
+      } else {
+        toast.error(data.detail || 'Erro ao enviar');
+      }
+    } catch {
+      toast.error('Erro ao enviar mensagens');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -215,8 +279,15 @@ export default function FunnelAnalyticsPage() {
           <option value="completed">Completou</option>
           <option value="dropped">Abandonou</option>
           <option value="in_progress">Em andamento</option>
+          <option value="reengagement">Reengajamento</option>
         </select>
         <span className="text-sm text-slate-500">{total} registros</span>
+        {selectedIds.size > 0 && (
+          <Button size="sm" onClick={() => setShowMessageModal(true)} className="ml-auto bg-gradient-to-r from-green-600 to-emerald-600">
+            <Send className="w-4 h-4 mr-2" />
+            Enviar mensagem ({selectedIds.size})
+          </Button>
+        )}
       </div>
 
       {/* Contacts table */}
@@ -226,10 +297,12 @@ export default function FunnelAnalyticsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-700/50">
+                  <th className="p-4 w-10">
+                    <input type="checkbox" checked={contacts.length > 0 && selectedIds.size === contacts.length} onChange={toggleSelectAll} className="rounded border-slate-600 bg-slate-800 text-violet-600" />
+                  </th>
                   <th className="text-left p-4 text-sm font-medium text-slate-400">Telefone</th>
                   <th className="text-left p-4 text-sm font-medium text-slate-400">Funil</th>
                   <th className="text-left p-4 text-sm font-medium text-slate-400">Status</th>
-                  <th className="text-left p-4 text-sm font-medium text-slate-400">Ultimo No</th>
                   <th className="text-left p-4 text-sm font-medium text-slate-400">Etapas</th>
                   <th className="text-left p-4 text-sm font-medium text-slate-400">Data</th>
                 </tr>
@@ -239,32 +312,80 @@ export default function FunnelAnalyticsPage() {
                   <tr><td colSpan={6} className="text-center p-8"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-500" /></td></tr>
                 ) : contacts.length === 0 ? (
                   <tr><td colSpan={6} className="text-center p-8 text-slate-500">Nenhum registro encontrado</td></tr>
-                ) : contacts.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-700/30 hover:bg-slate-700/20">
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-slate-500" />
-                        <span className="text-white font-mono text-sm">{formatPhone(c.sender_phone)}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-slate-300">{c.funnel_name || '-'}</td>
-                    <td className="p-4">
-                      <Badge className={statusColors[c.status] || 'bg-slate-500/20 text-slate-400'}>
-                        {statusLabels[c.status] || c.status}
-                      </Badge>
-                    </td>
-                    <td className="p-4 text-sm text-slate-400">
-                      <span className="capitalize">{c.last_node_type || '-'}</span>
-                      {c.last_node_label && c.last_node_label !== c.last_node_type && (
-                        <span className="text-slate-500 ml-1">({c.last_node_label.slice(0, 30)})</span>
+                ) : contacts.map((c) => {
+                  const vars = c.variables || {};
+                  const varKeys = Object.keys(vars).filter((k) => k !== 'saudacao');
+                  const isExpanded = expandedId === c.id;
+                  return (
+                    <tr key={c.id} className="border-b border-slate-700/30 hover:bg-slate-700/20 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : c.id)}>
+                      <td className="p-4 w-10" onClick={(e) => toggleSelect(e, c.id)}>
+                        <input type="checkbox" checked={selectedIds.has(c.id)} readOnly className="rounded border-slate-600 bg-slate-800 text-violet-600" />
+                      </td>
+                      <td className="p-4" colSpan={isExpanded ? 5 : 1}>
+                        {isExpanded ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-green-400" />
+                                <span className="text-white font-mono text-sm font-bold">{formatPhone(c.sender_phone)}</span>
+                                <button onClick={(e) => copyPhone(e, c.sender_phone)} className="p-1 rounded hover:bg-slate-600 text-slate-400 hover:text-white transition-colors" title="Copiar numero">
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                {c.sender_phone_lid && (
+                                  <span className="text-xs text-slate-600">({c.sender_phone_lid.split('@')[0].slice(-6)})</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge className={statusColors[c.status] || 'bg-slate-500/20 text-slate-400'}>
+                                  {statusLabels[c.status] || c.status}
+                                </Badge>
+                                <span className="text-xs text-slate-500">
+                                  {c.started_at ? new Date(c.started_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-xs text-slate-500">{c.funnel_name} — {c.total_nodes} etapas</div>
+                            {varKeys.length > 0 && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/50 rounded-lg p-3">
+                                {varKeys.map((k) => (
+                                  <div key={k}>
+                                    <span className="text-xs text-slate-500">{k.replace(/_/g, ' ')}</span>
+                                    <p className="text-sm text-white">{vars[k] || '-'}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-slate-500" />
+                            <span className="text-white font-mono text-sm">{formatPhone(c.sender_phone)}</span>
+                            <button onClick={(e) => copyPhone(e, c.sender_phone)} className="p-1 rounded hover:bg-slate-600 text-slate-400 hover:text-white transition-colors" title="Copiar numero">
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            {varKeys.length > 0 && (
+                              <span className="text-xs text-slate-600 ml-2">{varKeys.length} dados coletados</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      {!isExpanded && (
+                        <>
+                          <td className="p-4 text-slate-300 text-sm">{c.funnel_name || '-'}</td>
+                          <td className="p-4">
+                            <Badge className={statusColors[c.status] || 'bg-slate-500/20 text-slate-400'}>
+                              {statusLabels[c.status] || c.status}
+                            </Badge>
+                          </td>
+                          <td className="p-4 text-sm text-slate-400">{c.total_nodes}</td>
+                          <td className="p-4 text-sm text-slate-500">
+                            {c.started_at ? new Date(c.started_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                          </td>
+                        </>
                       )}
-                    </td>
-                    <td className="p-4 text-sm text-slate-400">{c.total_nodes}</td>
-                    <td className="p-4 text-sm text-slate-500">
-                      {c.started_at ? new Date(c.started_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
-                    </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -279,6 +400,25 @@ export default function FunnelAnalyticsPage() {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Proxima</Button>
         </div>
       )}
+
+      {/* Send Message Modal */}
+      <Modal open={showMessageModal} onOpenChange={setShowMessageModal} title="Enviar Mensagem" description={`Enviar para ${selectedIds.size} contato(s) selecionado(s)`}>
+        <div className="space-y-4 mt-4">
+          <Textarea
+            value={messageText}
+            onChange={(e) => setMessageText(e.target.value)}
+            placeholder="Digite a mensagem que sera enviada via WhatsApp..."
+            className="bg-slate-800 border-slate-700 text-white min-h-[120px]"
+          />
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowMessageModal(false)}>Cancelar</Button>
+            <Button onClick={handleSendMessage} disabled={sending} className="bg-gradient-to-r from-green-600 to-emerald-600">
+              {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              Enviar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -1,0 +1,38 @@
+# Local development overrides — exposes ports and disables nginx/backup
+version: '3.8'
+
+services:
+  postgres:
+    ports:
+      - "5433:5432"
+
+  mongodb:
+    ports:
+      - "27017:27017"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  backend:
+    ports:
+      - "8000:8000"
+
+  whatsapp_bridge:
+    ports:
+      - "3000:3000"
+
+  admin_panel:
+    ports:
+      - "3001:3001"
+    environment:
+      NEXTAUTH_URL: "http://localhost:3001"
+      PORT: "3001"
+
+  nginx:
+    profiles:
+      - production
+
+  backup:
+    profiles:
+      - production

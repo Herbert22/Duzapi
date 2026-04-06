@@ -36,7 +36,7 @@ export default function AdminUsersPage() {
 
   // Edit modal
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', role: '', maxTenants: 0, maxMessagesPerMonth: 0 });
+  const [editForm, setEditForm] = useState({ name: '', role: '', maxTenants: 0, maxMessagesPerMonth: 0, subscriptionStatus: '' });
 
   // Delete modal
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
@@ -126,7 +126,7 @@ export default function AdminUsersPage() {
 
   const openEdit = (user: User) => {
     setEditUser(user);
-    setEditForm({ name: user.name || '', role: user.role, maxTenants: user.maxTenants, maxMessagesPerMonth: user.maxMessagesPerMonth });
+    setEditForm({ name: user.name || '', role: user.role, maxTenants: user.maxTenants, maxMessagesPerMonth: user.maxMessagesPerMonth, subscriptionStatus: user.subscription?.status || '' });
   };
 
   const statusBadge = (sub: User['subscription']) => {
@@ -291,6 +291,16 @@ export default function AdminUsersPage() {
             <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="w-full h-10 px-4 rounded-xl border border-slate-600 bg-slate-800/50 text-sm text-white">
               <option value="user">User</option>
               <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-300">Status da Assinatura</label>
+            <select value={editForm.subscriptionStatus} onChange={(e) => setEditForm({ ...editForm, subscriptionStatus: e.target.value })} className="w-full h-10 px-4 rounded-xl border border-slate-600 bg-slate-800/50 text-sm text-white">
+              <option value="">Sem plano</option>
+              <option value="active">Ativo</option>
+              <option value="pending">Pendente</option>
+              <option value="cancelled">Cancelado</option>
+              <option value="expired">Expirado</option>
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">

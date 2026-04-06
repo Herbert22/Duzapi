@@ -31,6 +31,7 @@ class BridgeWebhookPayload(BaseModel):
     message_id: Optional[str] = Field(None, description="WhatsApp message ID")
     timestamp: Optional[str] = Field(None, description="ISO timestamp")
     error: Optional[str] = Field(None, description="Error if media processing failed")
+    sender_phone_number: Optional[str] = Field(None, description="Real phone number resolved from @lid")
 
 
 class WebhookResponse(BaseModel):
@@ -133,6 +134,13 @@ async def receive_whatsapp_message(
         is_from_me=False,
     )
     await message_repo.create(message_log)
+
+    # Save real phone number if resolved from @lid
+    if payload.sender_phone_number:
+        await mongodb["message_logs"].update_one(
+            {"session_id": session_id, "message_id": payload.message_id},
+            {"$set": {"sender_phone_number": payload.sender_phone_number}},
+        )
 
     # ------------------------------------------------------------------
     # Routing: Funnel (priority) → Bot Config (fallback)

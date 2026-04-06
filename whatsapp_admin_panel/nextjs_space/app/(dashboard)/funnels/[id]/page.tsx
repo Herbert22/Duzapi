@@ -275,6 +275,71 @@ function FunnelEditor() {
       return;
     }
 
+    // Collect all ASK variables for cross-validation
+    const askVariables = new Set<string>();
+    for (const n of nodes) {
+      if (n.data.nodeType === 'ask' && (n.data.variable as string)?.trim()) {
+        askVariables.add((n.data.variable as string).trim());
+      }
+    }
+
+    // Validate each node
+    for (const n of nodes) {
+      const nodeType = n.data.nodeType as string;
+      const label = (n.data.label as string) || nodeType;
+
+      if (nodeType === 'send_text') {
+        if (!(n.data.text as string)?.trim()) {
+          toast.error(`Nó "${label}": o campo de mensagem está vazio`);
+          return;
+        }
+      }
+
+      if (nodeType === 'ask') {
+        if (!(n.data.variable as string)?.trim()) {
+          toast.error(`Nó "${label}": o campo "Salvar resposta na variável" é obrigatório`);
+          return;
+        }
+      }
+
+      if (nodeType === 'condition') {
+        const variable = (n.data.variable as string)?.trim();
+        if (!variable) {
+          toast.error(`Nó "${label}": o campo "Variável a avaliar" é obrigatório`);
+          return;
+        }
+        if (!askVariables.has(variable)) {
+          toast.error(`Nó "${label}": a variável "${variable}" não existe em nenhum nó Pergunta. Verifique a ortografia.`);
+          return;
+        }
+        const conditions = (n.data.conditions as Array<Record<string, string>>) || [];
+        if (conditions.length === 0) {
+          toast.error(`Nó "${label}": adicione pelo menos uma condição`);
+          return;
+        }
+        for (let i = 0; i < conditions.length; i++) {
+          if (!conditions[i].value?.trim()) {
+            toast.error(`Nó "${label}": condição ${i + 1} tem o valor vazio`);
+            return;
+          }
+          // Auto-trim spaces in condition values and edge labels
+          conditions[i].value = conditions[i].value.trim();
+          if (conditions[i].edge_label) {
+            conditions[i].edge_label = conditions[i].edge_label.trim();
+          }
+        }
+        // Write back trimmed conditions
+        n.data.conditions = conditions;
+      }
+
+      if (nodeType === 'tag') {
+        if (!(n.data.tag_name as string)?.trim()) {
+          toast.error(`Nó "${label}": o campo "Nome da Tag" é obrigatório`);
+          return;
+        }
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -540,6 +605,7 @@ function FunnelEditor() {
             nodeType={(nodeFormData as Record<string, string>).nodeType || 'send_text'}
             data={nodeFormData}
             onChange={setNodeFormData}
+            allNodes={nodes}
           />
           <div className="flex justify-between pt-2 border-t border-slate-700">
             {selectedNode?.data?.nodeType !== 'start' && (
@@ -571,10 +637,12 @@ function NodePropertiesForm({
   nodeType,
   data,
   onChange,
+  allNodes,
 }: {
   nodeType: string;
   data: Record<string, unknown>;
   onChange: (d: Record<string, unknown>) => void;
+  allNodes?: Node[];
 }) {
   const update = (key: string, value: unknown) => onChange({ ...data, [key]: value });
 
@@ -752,11 +820,11 @@ function NodePropertiesForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">
-              Salvar resposta na variável
+              Salvar resposta na variável <span className="text-red-400">*</span>
             </label>
             <Input
               value={(data.variable as string) || ''}
-              onChange={(e) => update('variable', e.target.value)}
+              onChange={(e) => update('variable', e.target.value.replace(/\s/g, '_').toLowerCase())}
               placeholder="client_name"
               className="bg-slate-800 border-slate-700 text-white"
             />
@@ -789,17 +857,28 @@ function NodePropertiesForm({
         </>
       );
 
-    case 'condition':
+    case 'condition': {
+      const availableVars = (allNodes || [])
+        .filter((n) => n.data.nodeType === 'ask' && (n.data.variable as string)?.trim())
+        .map((n) => (n.data.variable as string).trim());
       return (
         <>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Variável a avaliar</label>
-            <Input
-              value={(data.variable as string) || ''}
-              onChange={(e) => update('variable', e.target.value)}
-              placeholder="client_answer"
-              className="bg-slate-800 border-slate-700 text-white"
-            />
+            <label className="block text-sm font-medium text-slate-300 mb-1">Variável a avaliar <span className="text-red-400">*</span></label>
+            {availableVars.length > 0 ? (
+              <select
+                value={(data.variable as string) || ''}
+                onChange={(e) => update('variable', e.target.value)}
+                className="w-full h-10 px-4 rounded-xl border border-slate-700 bg-slate-800 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              >
+                <option value="">Selecione uma variável</option>
+                {availableVars.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-yellow-400">Nenhum nó Pergunta com variável definida. Adicione uma Pergunta antes.</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Condições</label>
@@ -867,6 +946,7 @@ function NodePropertiesForm({
           </div>
         </>
       );
+    }
 
     case 'tag':
       return (

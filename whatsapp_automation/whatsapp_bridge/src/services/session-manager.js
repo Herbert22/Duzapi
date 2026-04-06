@@ -271,8 +271,10 @@ class SessionManager {
   _startWatchdog() {
     const WATCHDOG_INTERVAL = 60000; // check every 60s
     this._watchdogInterval = setInterval(async () => {
+      let hasConnected = false;
       for (const [sessionId, session] of this.sessions) {
         if (!session.isConnected) continue;
+        hasConnected = true;
         try {
           // Probe the connection — getConnectionState throws if browser is dead
           const state = await session.client.getConnectionState();
@@ -288,6 +290,13 @@ class SessionManager {
           session.state = 'DEAD';
           this._scheduleReconnect(sessionId);
         }
+      }
+      // Refresh Redis TTL for known_sessions so it doesn't expire while sessions are active
+      if (hasConnected) {
+        try {
+          const redis = getRedis();
+          await redis.expire(REDIS_SESSIONS_KEY, config.sessionPersistTtl);
+        } catch (_) { /* ignore */ }
       }
     }, WATCHDOG_INTERVAL);
   }

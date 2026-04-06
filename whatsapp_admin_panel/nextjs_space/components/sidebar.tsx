@@ -81,8 +81,8 @@ export function Sidebar() {
               <MessageSquare className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">WhatsApp</h1>
-              <p className="text-xs text-slate-400">Painel Admin</p>
+              <h1 className="text-lg font-bold text-white">DuzAPI</h1>
+              <p className="text-xs text-slate-400">Automação WhatsApp</p>
             </div>
           </div>
 
