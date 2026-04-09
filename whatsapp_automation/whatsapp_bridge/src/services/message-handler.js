@@ -168,8 +168,8 @@ class MessageHandler {
       return null;
     }
 
-    // Exponential backoff: 5s, 10s, 20s, 40s, 60s, 90s, 120s (~6min total)
-    const delays = [5000, 10000, 20000, 40000, 60000, 90000, 120000];
+    // Progressive backoff: 60s, 90s, 120s, 180s, 300s (~12.5min total)
+    const delays = [60000, 90000, 120000, 180000, 300000];
     for (const delay of delays) {
       await new Promise(r => setTimeout(r, delay));
       try {
