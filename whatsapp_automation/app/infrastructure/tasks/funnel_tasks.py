@@ -496,40 +496,55 @@ def _execute_node(
         edges = _get_outgoing_edges(graph, node_id)
         matched_edge = None
 
-        for cond in conditions:
+        # --- New format: match by handle ID (condition-0, condition-1, ...) ---
+        for i, cond in enumerate(conditions):
             operator = cond.get("operator", "contains")
             value = cond.get("value", "").lower().strip()
-            edge_label = cond.get("edge_label", "")
 
             is_match = False
             if operator == "contains":
                 is_match = value in answer_lower
-            elif operator == "equals":
+            elif operator in ("equals", "exact"):
                 is_match = answer_lower == value
             elif operator == "starts_with":
                 is_match = answer_lower.startswith(value)
 
-            if is_match and edge_label:
-                # Find edge by condition_label (set from React Flow edge label)
+            if is_match:
+                handle_id = f"condition-{i}"
                 matched_edge = next(
-                    (e for e in edges if (e.get("condition_label") or "").strip() == edge_label.strip()),
+                    (e for e in edges if (e.get("condition_label") or "") == handle_id),
                     None,
                 )
-                if not matched_edge:
-                    # Fallback: try matching by condition_value field
-                    matched_edge = next(
-                        (e for e in edges if (e.get("condition_value") or "").strip() == edge_label.strip()),
-                        None,
-                    )
                 if matched_edge:
                     break
-            elif is_match:
-                # No edge_label specified — use first available edge
-                if edges:
+
+                # Backwards compat: old-style edge_label matching
+                edge_label = cond.get("edge_label", "")
+                if edge_label:
+                    matched_edge = next(
+                        (e for e in edges if (e.get("condition_label") or "").strip() == edge_label.strip()),
+                        None,
+                    )
+                    if not matched_edge:
+                        matched_edge = next(
+                            (e for e in edges if (e.get("condition_value") or "").strip() == edge_label.strip()),
+                            None,
+                        )
+                    if matched_edge:
+                        break
+
+                # No handle match and no edge_label — use first available edge
+                if not matched_edge and edges:
                     matched_edge = edges[0]
                     break
 
-        # If no condition matched, use first edge without a condition (default path)
+        # Fallback: default handle path
+        if not matched_edge:
+            matched_edge = next(
+                (e for e in edges if (e.get("condition_label") or "") == "condition-default"),
+                None,
+            )
+        # Fallback: first edge without a condition label (old default)
         if not matched_edge:
             matched_edge = next(
                 (e for e in edges if not e.get("condition_label") and not e.get("condition_value")),

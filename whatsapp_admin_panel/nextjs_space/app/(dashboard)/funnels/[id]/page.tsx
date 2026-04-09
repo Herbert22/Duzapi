@@ -149,16 +149,21 @@ function FunnelEditor() {
         }
 
         // Convert backend edges to React Flow edges
-        const rfEdges: Edge[] = data.edges.map((e) => ({
-          id: e.id,
-          source: e.source_node_id,
-          target: e.target_node_id,
-          label: e.condition_label || undefined,
-          data: { condition_value: e.condition_value, sort_order: e.sort_order },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
-          style: { stroke: '#6366f1', strokeWidth: 2 },
-          animated: true,
-        }));
+        const rfEdges: Edge[] = data.edges.map((e) => {
+          const isHandleId = /^condition-(\d+|default)$/.test(e.condition_label || '');
+          return {
+            id: e.id,
+            source: e.source_node_id,
+            target: e.target_node_id,
+            // New format: condition_label stores handle ID, condition_value stores display label
+            sourceHandle: isHandleId ? e.condition_label! : undefined,
+            label: isHandleId ? (e.condition_value || undefined) : (e.condition_label || undefined),
+            data: { condition_value: e.condition_value, sort_order: e.sort_order },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+            style: { stroke: '#6366f1', strokeWidth: 2 },
+            animated: true,
+          };
+        });
 
         setNodes(rfNodes);
         setEdges(rfEdges);
@@ -176,22 +181,44 @@ function FunnelEditor() {
     return found?.label || type;
   };
 
-  // Handle new connection
+  // Handle new connection (auto-label for condition handles)
   const onConnect = useCallback(
     (connection: Connection) => {
+      let edgeLabel: string | undefined;
+      let conditionValue: string | undefined;
+
+      if (connection.sourceHandle?.startsWith('condition-')) {
+        const sourceNode = nodes.find((n) => n.id === connection.source);
+        if (sourceNode?.data?.nodeType === 'condition') {
+          const conds = (sourceNode.data.conditions as Array<{ operator: string; value: string }>) || [];
+          if (connection.sourceHandle === 'condition-default') {
+            edgeLabel = 'Nenhuma';
+          } else {
+            const idx = parseInt(connection.sourceHandle.replace('condition-', ''), 10);
+            const cond = conds[idx];
+            if (cond) {
+              edgeLabel = cond.value || `Caminho ${idx + 1}`;
+              conditionValue = cond.value;
+            }
+          }
+        }
+      }
+
       setEdges((eds) =>
         addEdge(
           {
             ...connection,
+            label: edgeLabel,
+            data: { condition_value: conditionValue },
             markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
             style: { stroke: '#6366f1', strokeWidth: 2 },
             animated: true,
           },
-          eds
-        )
+          eds,
+        ),
       );
     },
-    [setEdges]
+    [setEdges, nodes],
   );
 
   // Add node from palette
@@ -322,11 +349,8 @@ function FunnelEditor() {
             toast.error(`Nó "${label}": condição ${i + 1} tem o valor vazio`);
             return;
           }
-          // Auto-trim spaces in condition values and edge labels
+          // Auto-trim spaces in condition values
           conditions[i].value = conditions[i].value.trim();
-          if (conditions[i].edge_label) {
-            conditions[i].edge_label = conditions[i].edge_label.trim();
-          }
         }
         // Write back trimmed conditions
         n.data.conditions = conditions;
@@ -363,8 +387,9 @@ function FunnelEditor() {
             ...(isUuid ? { id: e.id } : {}),
             source_node_id: e.source,
             target_node_id: e.target,
-            condition_label: (e.label as string) || null,
-            condition_value: (e.data as Record<string, unknown>)?.condition_value as string || null,
+            // Store sourceHandle in condition_label for condition nodes, else use label
+            condition_label: e.sourceHandle || (e.label as string) || null,
+            condition_value: (e.data as Record<string, unknown>)?.condition_value as string || (e.label as string) || null,
             sort_order: (e.data as Record<string, unknown>)?.sort_order as number || 0,
           };
         }),
@@ -387,16 +412,20 @@ function FunnelEditor() {
           position: { x: n.position_x, y: n.position_y },
           data: { ...n.data, nodeType: n.type, label: getNodeLabel(n.type) },
         }));
-        const rfEdges: Edge[] = saved.edges.map((e) => ({
-          id: e.id,
-          source: e.source_node_id,
-          target: e.target_node_id,
-          label: e.condition_label || undefined,
-          data: { condition_value: e.condition_value, sort_order: e.sort_order },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
-          style: { stroke: '#6366f1', strokeWidth: 2 },
-          animated: true,
-        }));
+        const rfEdges: Edge[] = saved.edges.map((e) => {
+          const isHandleId = /^condition-(\d+|default)$/.test(e.condition_label || '');
+          return {
+            id: e.id,
+            source: e.source_node_id,
+            target: e.target_node_id,
+            sourceHandle: isHandleId ? e.condition_label! : undefined,
+            label: isHandleId ? (e.condition_value || undefined) : (e.condition_label || undefined),
+            data: { condition_value: e.condition_value, sort_order: e.sort_order },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+            style: { stroke: '#6366f1', strokeWidth: 2 },
+            animated: true,
+          };
+        });
         setNodes(rfNodes);
         setEdges(rfEdges);
       } else {
@@ -881,68 +910,9 @@ function NodePropertiesForm({
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Condições</label>
-            <p className="text-xs text-slate-500 mb-2">
-              Defina as condições e conecte cada saída a um nó diferente no canvas.
-              Use o rótulo da aresta para identificar cada caminho.
+            <p className="text-xs text-slate-500">
+              Configure os caminhos e condições diretamente no nó no canvas. Cada caminho tem sua própria saída de conexão.
             </p>
-            {((data.conditions as Array<Record<string, string>>) || []).map((cond, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <select
-                  value={cond.operator || 'contains'}
-                  onChange={(e) => {
-                    const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
-                    conditions[i] = { ...conditions[i], operator: e.target.value };
-                    update('conditions', conditions);
-                  }}
-                  className="rounded bg-slate-800 border border-slate-700 text-white text-sm px-2"
-                >
-                  <option value="contains">Contém</option>
-                  <option value="equals">Igual a</option>
-                  <option value="starts_with">Começa com</option>
-                </select>
-                <Input
-                  value={cond.value || ''}
-                  onChange={(e) => {
-                    const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
-                    conditions[i] = { ...conditions[i], value: e.target.value };
-                    update('conditions', conditions);
-                  }}
-                  placeholder="valor"
-                  className="bg-slate-800 border-slate-700 text-white text-sm flex-1"
-                />
-                <Input
-                  value={cond.edge_label || ''}
-                  onChange={(e) => {
-                    const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
-                    conditions[i] = { ...conditions[i], edge_label: e.target.value };
-                    update('conditions', conditions);
-                  }}
-                  placeholder="rótulo"
-                  className="bg-slate-800 border-slate-700 text-white text-sm w-24"
-                />
-                <button
-                  onClick={() => {
-                    const conditions = ((data.conditions as Array<Record<string, string>>) || []).filter((_, j) => j !== i);
-                    update('conditions', conditions);
-                  }}
-                  className="text-red-400 hover:text-red-300"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const conditions = [...((data.conditions as Array<Record<string, string>>) || [])];
-                conditions.push({ operator: 'contains', value: '', edge_label: '' });
-                update('conditions', conditions);
-              }}
-            >
-              + Condição
-            </Button>
           </div>
         </>
       );
