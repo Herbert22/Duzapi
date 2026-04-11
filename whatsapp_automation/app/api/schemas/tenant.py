@@ -22,7 +22,7 @@ class TenantBase(BaseModel):
 
 class TenantCreate(TenantBase):
     """Schema for creating a new tenant."""
-    pass
+    owner_id: Optional[str] = Field(None, description="Owner user ID (set by proxy)")
 
 
 class TenantUpdate(BaseModel):
@@ -45,6 +45,7 @@ class TenantUpdate(BaseModel):
 class TenantResponse(TenantBase):
     """Schema for tenant response."""
     id: UUID
+    owner_id: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

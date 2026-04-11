@@ -38,13 +38,16 @@ async def verify_admin_token(
 
 @router.get("/", response_model=List[BotConfigResponse])
 async def list_all_bot_configs(
+    tenant_id: Optional[UUID] = None,
     _=Depends(verify_admin_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all bot configurations across all tenants."""
-    result = await db.execute(
-        select(BotConfig).order_by(BotConfig.position.asc(), BotConfig.created_at.desc())
-    )
+    """List bot configurations, optionally filtered by tenant."""
+    query = select(BotConfig)
+    if tenant_id:
+        query = query.where(BotConfig.tenant_id == tenant_id)
+    query = query.order_by(BotConfig.position.asc(), BotConfig.created_at.desc())
+    result = await db.execute(query)
     configs = result.scalars().all()
     return [BotConfigResponse.from_orm_with_key_check(c) for c in configs]
 
