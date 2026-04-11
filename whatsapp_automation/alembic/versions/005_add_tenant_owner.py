@@ -8,8 +8,8 @@ Create Date: 2026-04-10
 from alembic import op
 import sqlalchemy as sa
 
-revision = "005"
-down_revision = "004"
+revision = "005_add_tenant_owner"
+down_revision = "004_widen_openai_api_key"
 branch_labels = None
 depends_on = None
 
